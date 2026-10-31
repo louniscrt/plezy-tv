@@ -1,4 +1,4 @@
-# 🍎 Plezy TV — Client Jellyfin & Overseerr pour Fire TV & Android TV
+# 🍎 Plezy TV — Port & Réimplémentation Native pour Fire TV & Android TV
 
 <p align="center">
   <img src="tv-home.BrkdGMKi.avif" alt="Plezy TV Accueil" width="800" />
@@ -15,11 +15,19 @@
 
 ---
 
-## 🌟 Présentation
+## 🌟 Présentation & Genèse du Projet
 
-**Plezy TV** est une application Android TV / Fire TV native en **Kotlin** conçue pour offrir l'expérience visuelle fluide et élégante d'**Infuse 8** et d'**Apple TV** sur vos appareils de salon, tout en étant connectée à votre propre serveur **Jellyfin** et à votre catalogue de requêtes **Overseerr / Jellyseerr**.
+### 🎯 Pourquoi ce projet ?
+L'application **Plezy TV** est réputée pour son interface moderne, soignée et épurée, mais elle est **totalement indisponible sur Amazon Fire TV** :
+1. **Absence sur l'Amazon Appstore** : Plezy n'est pas distribué pour l'écosystème Fire TV d'Amazon.
+2. **Incompatibilité matérielle et logicielle** : Beaucoup de clés Fire TV Stick en circulation tournent encore sous **Fire OS 5 (Android 5.1 / API 22)** avec seulement **1 Go de mémoire vive**, ce qui rend les applications modernes Web/Flutter/React-Native instables ou impossibles à exécuter.
 
-L'application a été spécialement pensée et architecturée pour tourner avec une fluidité absolue (60 FPS, zéro ralentissement) sur les appareils d'entrée de gamme à mémoire très limitée (**Fire TV Stick 1 Go de RAM**, Fire OS 5 / Android 5.1 Lollipop minimum).
+### 💡 La Solution : Recoder Plezy TV pour Fire TV
+Ce projet a pour but de **recoder entièrement Plezy TV *from scratch*** en **Kotlin natif**, sur mesure pour l'écosystème Fire TV et Android TV :
+* **Compatibilité rétroactive Fire OS 5+ (`minSdk = 22`)** : Fonctionne sur toutes les générations de Fire TV Stick, y compris les plus anciennes.
+* **Ergonomie Plezy TV + Style "Liquid Glass" Infuse 8 / Apple TV** : Reproduction fidèle des écrans d'origine (`tv-home`, `tv-library`, `tv-md`, `tv-player`).
+* **Intégrations avancées exclusives** : Connexion directe à **Jellyfin** (avec Quick Connect) et pont natif avec **Overseerr / Jellyseerr** pour demander des films et séries en un clic directement depuis son canapé.
+* **Optimisation mémoire chirurgicale** : Développé pour maintenir un affichage fluide à 60 FPS sans crash sur les appareils limités à 1 Go de RAM.
 
 ---
 
