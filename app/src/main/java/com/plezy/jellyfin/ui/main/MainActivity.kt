@@ -1,11 +1,13 @@
 package com.plezy.jellyfin.ui.main
 
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -18,70 +20,112 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
 import com.plezy.jellyfin.R
 import com.plezy.jellyfin.data.api.JellyfinClient
 import com.plezy.jellyfin.data.api.SeerrCategory
 import com.plezy.jellyfin.data.api.SeerrClient
 import com.plezy.jellyfin.data.local.OfflineDownloadManager
+import com.plezy.jellyfin.data.local.SavedMediaStore
 import com.plezy.jellyfin.data.model.MediaItem
-import com.plezy.jellyfin.ui.common.MediaCardAdapter
+import com.plezy.jellyfin.data.model.MediaType
+import com.plezy.jellyfin.data.model.OverseerrStatus
+import com.plezy.jellyfin.ui.common.NetflixRowAdapter
+import com.plezy.jellyfin.ui.common.RowsScrollView
+import com.plezy.jellyfin.ui.common.StartAlignLayoutManager
 import com.plezy.jellyfin.ui.detail.MediaDetailActivity
 import com.plezy.jellyfin.ui.login.ServerSetupActivity
+import com.plezy.jellyfin.ui.player.PlayerActivity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Écran d'accueil Apple TV **Infuse 8 Liquid Glass** (`media_1793397604903_4ae2ba84.png`) :
- * - Barre supérieure épurée : `[ 🔍 Search ]` à gauche, 3 boutons ronds vectoriels (`[Tri] [Refresh] [Settings]`) à droite.
- * - Section `Watching` : Grandes cartes 16:9 aux coins arrondis 14dp avec barre de progression orange et Titre + Sous-titre centrés dessous.
- * - Section `Favorites` : Grandes tuiles 16:9 dégradées (Orange `Overseerr`, Bleu `Movies`, Rose `TV Shows`, Violet `All Media`) avec icône vectorielle blanche au centre et titre centré sous la tuile.
- * - Sections `Recently Added Movies`, `Recently Added TV Shows` et `Trending on Overseerr`.
+ * Reproduction exacte de l'interface Netflix TV (media_1793484172329_ae29df35.png) :
+ * - Barre latérale gauche 54dp avec barre rouge verticale sur l'onglet actif.
+ * - Grand Billboard cinématique : [P] FILM / S É R I E -> Titre géant -> [ ▶ Lecture ] [ Plus d'infos ] -> Synopsis 3-4 lignes.
+ * - Tag de classification flottant à droite (| 16+).
+ * - Logo PLEZY rouge vif au-dessus des rangées en bas à droite.
+ * - Carrousel horizontal de vignettes 16:9 et rangée Top 10 à grands chiffres détourés.
+ * - Suppression complète de "Mes demandes" conformément à la demande utilisateur.
  */
 class MainActivity : AppCompatActivity() {
+
+    private enum class Page { HOME, SERIES, MOVIES, SEERR, MYLIST, SEARCH }
+
+    private class RowSpec(
+        val title: String,
+        val items: List<MediaItem>,
+        val style: NetflixRowAdapter.Style = NetflixRowAdapter.Style.TILE,
+        val recentBadges: Int = 0,
+        val top10: Boolean = false,
+        val key: String? = null,
+        val callout: (MediaItem, Int) -> String? = { _, _ -> null },
+        val loadMore: (suspend (Int) -> List<MediaItem>)? = null
+    )
+
+    private class RowState(
+        val view: View,
+        val rv: RecyclerView,
+        val adapter: NetflixRowAdapter,
+        val spec: RowSpec
+    ) {
+        var page = 1
+        var loading = false
+        var hasMore = true
+    }
+
+    private class PageContent(
+        val featured: MediaItem?,
+        val featuredCallout: String?,
+        val featuredTop10: Boolean,
+        val rows: List<RowSpec>
+    )
 
     private lateinit var jellyfinClient: JellyfinClient
     private lateinit var seerrClient: SeerrClient
     private lateinit var offlineManager: OfflineDownloadManager
 
-    private lateinit var homeContainer: View
-    private lateinit var libraryContainer: View
+    private lateinit var browseContainer: View
     private lateinit var searchContainer: View
-    private lateinit var downloadsContainer: View
-    private lateinit var navHome: View
-    private lateinit var navSearch: View
-
-    private lateinit var rowJellyfinFilters: View
-    private lateinit var rowOverseerrFilters: View
-
+    private lateinit var sidebarContainer: ViewGroup
+    private lateinit var rowsScroll: RowsScrollView
+    private lateinit var rowsContainer: LinearLayout
+    private lateinit var heroButtons: View
+    private lateinit var btnHeroPlay: TextView
+    private lateinit var btnHeroMoreInfo: TextView
     private lateinit var ivHeroBackdrop: ImageView
+    private lateinit var ivHeroLogo: ImageView
+    private lateinit var tvHeroTitle: TextView
+    private lateinit var tvHeroOverview: TextView
+    private lateinit var tvHeroCategoryTag: TextView
+    private lateinit var tvHeroMeta: TextView
+    private lateinit var tvStatus: TextView
+    private lateinit var etSearch: EditText
+    private lateinit var searchAdapter: NetflixRowAdapter
 
-    private lateinit var continueAdapter: MediaCardAdapter
-    private lateinit var homeMoviesAdapter: MediaCardAdapter
-    private lateinit var recentAdapter: MediaCardAdapter
-    private lateinit var overseerrTrendingAdapter: MediaCardAdapter
-    private lateinit var libraryGridAdapter: MediaCardAdapter
-    private lateinit var searchAdapter: MediaCardAdapter
-    private lateinit var downloadsAdapter: MediaCardAdapter
+    private lateinit var navTabs: Map<Page, View>
+    private lateinit var navBars: Map<Page, View>
 
-    private var contentJob: Job? = null
-    private var gridJob: Job? = null
-    private var gridGeneration = 0
-    private var seerrHasMore = true
-    private var resumedOnce = false
-    private var ambientJob: Job? = null
-    private var currentTab = "Browse"
-    private var currentItemType = "Movie,Series"
-    private var onlyUnplayed = false
-    private var currentSortBy = "SortName"
+    private val rows = mutableListOf<RowState>()
+    private var currentPage = Page.HOME
+    private var featuredItem: MediaItem? = null
+    private var featuredCallout: String? = null
+    private var featuredTop10 = false
+    private var heroMode = true
+    private var pageJob: Job? = null
+    private var pageGeneration = 0
+    private var backdropJob: Job? = null
     private var searchJob: Job? = null
-
-    private var currentSeerrCategory = SeerrCategory.TRENDING
-    private var seerrPage = 1
-    private var isSeerrLoading = false
-    private val seerrLoadedItems = mutableListOf<MediaItem>()
+    private var resumedOnce = false
+    private var lastBackdropUrl: String? = null
+    private var lastLogoUrl: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,166 +135,527 @@ class MainActivity : AppCompatActivity() {
         seerrClient = SeerrClient(this)
         offlineManager = OfflineDownloadManager(this)
 
-        homeContainer = findViewById(R.id.homeContainer)
-        libraryContainer = findViewById(R.id.libraryContainer)
+        browseContainer = findViewById(R.id.browseContainer)
         searchContainer = findViewById(R.id.searchContainer)
-        downloadsContainer = findViewById(R.id.downloadsContainer)
-        navHome = findViewById(R.id.navHome)
-        navSearch = findViewById(R.id.navSearch)
-
-        rowJellyfinFilters = findViewById(R.id.rowJellyfinFilters)
-        rowOverseerrFilters = findViewById(R.id.rowOverseerrFilters)
-
+        sidebarContainer = findViewById(R.id.sidebarContainer)
+        rowsScroll = findViewById(R.id.rowsScroll)
+        rowsContainer = findViewById(R.id.rowsContainer)
+        heroButtons = findViewById(R.id.heroButtons)
+        btnHeroPlay = findViewById(R.id.btnHeroPlay)
+        btnHeroMoreInfo = findViewById(R.id.btnHeroMoreInfo)
         ivHeroBackdrop = findViewById(R.id.ivHeroBackdrop)
+        ivHeroLogo = findViewById(R.id.ivHeroLogo)
+        tvHeroTitle = findViewById(R.id.tvHeroTitle)
+        tvHeroOverview = findViewById(R.id.tvHeroOverview)
+        tvHeroCategoryTag = findViewById(R.id.tvHeroCategoryTag)
+        tvHeroMeta = findViewById(R.id.tvHeroMeta)
+        tvStatus = findViewById(R.id.tvHomeStatus)
+        etSearch = findViewById(R.id.etSearchQuery)
 
-        setupTopNavigationBar()
-        setupInfuseFavoriteTiles()
-        setupLibraryTabsAndFilters()
-        setupSearchInput()
-        setupRecyclerViews()
-        loadAllContent()
+        navTabs = mapOf(
+            Page.SEARCH to findViewById(R.id.navSearch),
+            Page.HOME to findViewById(R.id.navHome),
+            Page.SERIES to findViewById(R.id.navSeries),
+            Page.MOVIES to findViewById(R.id.navMovies),
+            Page.MYLIST to findViewById(R.id.navDownloads),
+            Page.SEERR to findViewById(R.id.navOverseerr)
+        )
+
+        navBars = mapOf(
+            Page.SEARCH to findViewById(R.id.barNavSearch),
+            Page.HOME to findViewById(R.id.barNavHome),
+            Page.SERIES to findViewById(R.id.barNavSeries),
+            Page.MOVIES to findViewById(R.id.barNavMovies),
+            Page.MYLIST to findViewById(R.id.barNavDownloads),
+            Page.SEERR to findViewById(R.id.barNavOverseerr)
+        )
+
+        setupSidebar()
+        setupHeroButtons()
+        setupSearch()
+        openPage(Page.HOME)
+        btnHeroPlay.requestFocus()
     }
 
     override fun onResume() {
         super.onResume()
-        refreshOfflineDownloads()
-        if (resumedOnce) loadAllContent()
+        if (resumedOnce) refreshDynamicRows()
         resumedOnce = true
     }
 
-    private fun showContainer(target: View) {
-        homeContainer.visibility = if (target == homeContainer) View.VISIBLE else View.GONE
-        libraryContainer.visibility = if (target == libraryContainer) View.VISIBLE else View.GONE
-        searchContainer.visibility = if (target == searchContainer) View.VISIBLE else View.GONE
-        downloadsContainer.visibility = if (target == downloadsContainer) View.VISIBLE else View.GONE
-        navHome.visibility = View.VISIBLE
-        navHome.isSelected = target == homeContainer
-        findViewById<View>(R.id.navLibrary).isSelected = target == libraryContainer
-        findViewById<View>(R.id.navDownloads).isSelected = target == downloadsContainer
-        if (target == homeContainer) navHome.requestFocus()
-        navSearch.isSelected = (target == searchContainer)
-    }
+    // ------------------------------------------------------------------
+    // Barre latérale gauche Netflix
+    // ------------------------------------------------------------------
 
-    private fun setupTopNavigationBar() {
-        val navSettings = findViewById<View>(R.id.navSettings)
-        val btnRefresh = findViewById<View>(R.id.btnRefresh)
-        val btnSortTop = findViewById<View>(R.id.btnUsers)
+    private fun setupSidebar() {
+        val profile = findViewById<TextView>(R.id.navProfile)
+        profile.text = jellyfinClient.currentUserName.firstOrNull()?.uppercase() ?: "L"
+        profile.setOnClickListener { showSettingsMenu() }
 
-        showContainer(homeContainer)
-        findViewById<View>(R.id.navLibrary).setOnClickListener { openLibrarySection("Browse", "Movie,Series", "Tous les types") }
-        findViewById<View>(R.id.navDownloads).setOnClickListener {
-            showContainer(downloadsContainer)
-            refreshOfflineDownloads()
-            findViewById<View>(R.id.rvDownloads).requestFocus()
-        }
+        findViewById<View>(R.id.navSettings).setOnClickListener { showSettingsMenu() }
 
-        navHome.setOnClickListener {
-            showContainer(homeContainer)
-        }
-
-        navSearch.setOnClickListener {
-            showContainer(searchContainer)
-            findViewById<EditText>(R.id.etSearchQuery).requestFocus()
-        }
-
-        btnSortTop.setOnClickListener {
-            val options = arrayOf(
-                "Movies (Jellyfin)",
-                "TV Shows (Jellyfin)",
-                "Overseerr · Discover & Request",
-                "All Media (Movies & TV Shows)",
-                "Offline Downloads"
-            )
-            AlertDialog.Builder(this)
-                .setTitle("Browse Library")
-                .setItems(options) { _, which ->
-                    when (which) {
-                        0 -> openLibrarySection("Browse", "Movie", "Movies")
-                        1 -> openLibrarySection("Browse", "Series", "TV Shows")
-                        2 -> openLibrarySection("Overseerr", "Movie,Series", "Overseerr")
-                        3 -> openLibrarySection("Browse", "Movie,Series", "All Types")
-                        4 -> {
-                            showContainer(downloadsContainer)
-                            refreshOfflineDownloads()
-                        }
-                    }
-                }
-                .show()
-        }
-
-        btnRefresh.setOnClickListener {
-            Toast.makeText(this, "Refreshing library...", Toast.LENGTH_SHORT).show()
-            loadAllContent()
-        }
-
-        navSettings.setOnClickListener {
-            showSettingsMenu()
-        }
-    }
-
-    private fun openLibrarySection(tab: String, itemType: String, filterLabel: String) {
-        if (tab == "Overseerr") {
-            switchToOverseerrView(SeerrCategory.TRENDING)
-            return
-        }
-        currentTab = tab
-        currentItemType = itemType
-        rowJellyfinFilters.visibility = View.VISIBLE
-        rowOverseerrFilters.visibility = View.GONE
-        findViewById<TextView>(R.id.btnFilterType).text = filterLabel
-        showContainer(libraryContainer)
-        refreshLibraryGrid()
-        findViewById<View>(R.id.tabBrowse).requestFocus()
-    }
-
-    private fun setupInfuseFavoriteTiles() {
-        val tileOverseerr = findViewById<View>(R.id.tileFavOverseerr)
-        val tileMovies = findViewById<View>(R.id.tileFavMovies)
-        val tileShows = findViewById<View>(R.id.tileFavShows)
-        val tileAll = findViewById<View>(R.id.tileFavAll)
-
-        listOf(tileOverseerr, tileMovies, tileShows, tileAll).forEach { tile ->
-            tile.setOnFocusChangeListener { v, hasFocus ->
-                val scale = if (hasFocus) 1.06f else 1.0f
-                v.animate().scaleX(scale).scaleY(scale).setDuration(140).start()
+        navTabs.forEach { (page, view) ->
+            view.setOnClickListener {
+                if (currentPage != page) openPage(page)
             }
         }
+    }
 
-        tileOverseerr.setOnClickListener {
-            switchToOverseerrView(SeerrCategory.TRENDING)
+    private fun openPage(page: Page) {
+        currentPage = page
+        navTabs.forEach { (p, v) -> v.isSelected = (p == page) }
+        navBars.forEach { (p, bar) -> bar.visibility = if (p == page) View.VISIBLE else View.GONE }
+
+        if (page == Page.SEARCH) {
+            browseContainer.visibility = View.GONE
+            searchContainer.visibility = View.VISIBLE
+            etSearch.requestFocus()
+            if (searchAdapter.itemCount == 0) runSearch("")
+            return
         }
+        searchContainer.visibility = View.GONE
+        browseContainer.visibility = View.VISIBLE
+        loadPage(page)
+    }
 
-        tileMovies.setOnClickListener {
-            openLibrarySection("Browse", "Movie", "Films")
-        }
+    // ------------------------------------------------------------------
+    // Chargement des pages
+    // ------------------------------------------------------------------
 
-        tileShows.setOnClickListener {
-            openLibrarySection("Browse", "Series", "Séries")
-        }
+    private fun loadPage(page: Page) {
+        pageJob?.cancel()
+        val generation = ++pageGeneration
+        rows.clear()
+        rowsContainer.removeAllViews()
+        rowsScroll.scrollTo(0, 0)
+        tvStatus.visibility = View.VISIBLE
+        tvStatus.text = "Chargement…"
 
-        tileAll.setOnClickListener {
-            openLibrarySection("Browse", "Movie,Series", "Tous les types")
+        pageJob = lifecycleScope.launch {
+            val content = try {
+                when (page) {
+                    Page.HOME -> buildHome()
+                    Page.SERIES -> buildLibrary("Series")
+                    Page.MOVIES -> buildLibrary("Movie")
+                    Page.SEERR -> buildSeerr()
+                    Page.MYLIST -> buildMyList()
+                    Page.SEARCH -> PageContent(null, null, false, emptyList())
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                PageContent(null, null, false, emptyList())
+            }
+            if (generation != pageGeneration) return@launch
+
+            content.rows.forEach { addRow(it) }
+            featuredItem = content.featured ?: rows.firstOrNull()?.spec?.items?.firstOrNull()
+            featuredCallout = content.featuredCallout
+            featuredTop10 = content.featuredTop10
+
+            if (rows.isEmpty()) {
+                tvStatus.visibility = View.VISIBLE
+                tvStatus.text = "Rien à afficher pour le moment."
+            } else {
+                tvStatus.visibility = View.GONE
+            }
+            heroButtons.visibility = if (featuredItem != null) View.VISIBLE else View.GONE
+            setHeroMode(true)
         }
     }
 
+    private suspend fun buildHome(): PageContent = coroutineScope {
+        val resumeD = async { jellyfinClient.getContinueWatching() }
+        val moviesD = async { jellyfinClient.getRecentlyAddedMovies() }
+        val showsD = async { jellyfinClient.getRecentlyAdded("Series") }
+        val trendingD = async { safe { seerrClient.getCategoryItems(SeerrCategory.TRENDING, 1) } }
+        val topD = async { jellyfinClient.getLibraryCatalog("Recommended", "Movie,Series", limit = 24) }
+        val randomD = async { jellyfinClient.getLibraryCatalog("Browse", "Movie,Series", "Random", "Ascending", limit = 150) }
+
+        val resume = resumeD.await()
+        val movies = moviesD.await()
+        val shows = showsD.await()
+        val trending = trendingD.await()
+        val saved = SavedMediaStore(this@MainActivity, jellyfinClient.userId).items()
+
+        val rows = mutableListOf<RowSpec>()
+        rows += RowSpec("Reprendre avec le profil de ${jellyfinClient.currentUserName}", resume, key = "resume")
+        rows += RowSpec(
+            "Top 10 des tendances aujourd'hui", trending.take(10), NetflixRowAdapter.Style.TOP10, top10 = true,
+            callout = { _, i -> "N° ${i + 1} des tendances aujourd'hui" }
+        )
+        rows += RowSpec("Films ajoutés récemment", movies, recentBadges = 3, callout = { _, i -> if (i < 3) "Récemment ajouté" else null })
+        rows += RowSpec("Séries ajoutées récemment", shows, recentBadges = 3, callout = { _, i -> if (i < 3) "Récemment ajouté" else null })
+        rows += RowSpec("Ma liste", saved, key = "mylist")
+        rows += RowSpec("Les mieux notés", topD.await(), callout = { it, _ -> it.communityRating?.let { r -> "★ %.1f".format(r) } })
+        rows += genreRows(randomD.await(), 5)
+
+        val featured = (movies.take(6) + shows.take(6)).filter { it.backdropImageUrl != null }.randomOrNull()
+            ?: movies.firstOrNull() ?: shows.firstOrNull()
+        PageContent(featured, "Récemment ajouté", false, rows)
+    }
+
+    private suspend fun buildLibrary(type: String): PageContent = coroutineScope {
+        val isSeries = type == "Series"
+        val recentD = async { if (isSeries) jellyfinClient.getRecentlyAdded("Series") else jellyfinClient.getRecentlyAddedMovies() }
+        val topD = async { jellyfinClient.getLibraryCatalog("Recommended", type, limit = 30) }
+        val allD = async { jellyfinClient.getLibraryCatalog("Browse", type, "SortName", "Ascending", limit = 400) }
+        val resumeD = async { jellyfinClient.getContinueWatching() }
+
+        val recent = recentD.await()
+        val all = allD.await()
+        val resume = resumeD.await().filter { if (isSeries) it.type == MediaType.EPISODE else it.type == MediaType.MOVIE }
+        val label = if (isSeries) "séries" else "films"
+
+        val rows = mutableListOf<RowSpec>()
+        rows += RowSpec("Reprendre", resume, key = "resume")
+        rows += RowSpec("Nouveautés", recent, recentBadges = 3, callout = { _, i -> if (i < 3) "Récemment ajouté" else null })
+        rows += RowSpec(
+            if (isSeries) "Séries les mieux notées" else "Films les mieux notés", topD.await(),
+            callout = { it, _ -> it.communityRating?.let { r -> "★ %.1f".format(r) } }
+        )
+        rows += genreRows(all.shuffled(), 8)
+        rows += RowSpec("Tous les $label de A à Z", all)
+
+        val featured = recent.filter { it.backdropImageUrl != null }.take(8).randomOrNull() ?: recent.firstOrNull() ?: all.firstOrNull()
+        PageContent(featured, "Récemment ajouté", false, rows)
+    }
+
+    private suspend fun buildSeerr(): PageContent = coroutineScope {
+        val trendingD = async { safe { seerrClient.getCategoryItems(SeerrCategory.TRENDING, 1) } }
+        val moviesD = async { safe { seerrClient.getCategoryItems(SeerrCategory.MOVIES, 1) } }
+        val tvD = async { safe { seerrClient.getCategoryItems(SeerrCategory.TV, 1) } }
+        val upcomingD = async { safe { seerrClient.getCategoryItems(SeerrCategory.UPCOMING, 1) } }
+
+        val trending = trendingD.await()
+        val rows = mutableListOf<RowSpec>()
+        rows += RowSpec(
+            "Top 10 des tendances aujourd'hui", trending.take(10), NetflixRowAdapter.Style.TOP10, top10 = true,
+            callout = { _, i -> "N° ${i + 1} des tendances aujourd'hui" }
+        )
+        rows += RowSpec("Tendances de la semaine", trending.drop(10), loadMore = { p -> seerrClient.getCategoryItems(SeerrCategory.TRENDING, p) })
+        rows += RowSpec("Films populaires", moviesD.await(), loadMore = { p -> seerrClient.getCategoryItems(SeerrCategory.MOVIES, p) })
+        rows += RowSpec("Séries populaires", tvD.await(), loadMore = { p -> seerrClient.getCategoryItems(SeerrCategory.TV, p) })
+        rows += RowSpec("Prochainement au cinéma", upcomingD.await(), callout = { _, _ -> "Prochainement" }, loadMore = { p -> seerrClient.getCategoryItems(SeerrCategory.UPCOMING, p) })
+
+        val featured = trending.firstOrNull { it.backdropImageUrl != null } ?: trending.firstOrNull()
+        val rank = trending.indexOf(featured)
+        PageContent(featured, if (rank in 0..9) "N° ${rank + 1} des tendances aujourd'hui" else null, rank in 0..9, rows)
+    }
+
+    private suspend fun buildMyList(): PageContent = coroutineScope {
+        val resumeD = async { jellyfinClient.getContinueWatching() }
+        val saved = SavedMediaStore(this@MainActivity, jellyfinClient.userId).items()
+        val downloads = offlineManager.getDownloadedItems()
+        val resume = resumeD.await()
+
+        val rows = listOf(
+            RowSpec("Ma liste", saved, key = "mylist"),
+            RowSpec("Reprendre", resume, key = "resume"),
+            RowSpec("Téléchargements", downloads, callout = { _, _ -> "Disponible hors connexion" })
+        )
+        val featured = saved.firstOrNull() ?: resume.firstOrNull()
+        PageContent(featured, if (saved.isNotEmpty()) "Dans votre liste" else null, false, rows)
+    }
+
+    private fun genreRows(items: List<MediaItem>, max: Int): List<RowSpec> {
+        val byGenre = linkedMapOf<String, MutableList<MediaItem>>()
+        items.forEach { item -> item.genres.forEach { g -> byGenre.getOrPut(g) { mutableListOf() }.add(item) } }
+        return byGenre.entries
+            .filter { it.value.size >= 4 }
+            .sortedByDescending { it.value.size }
+            .take(max)
+            .map { (genre, list) -> RowSpec(genre, list.take(30), callout = { _, _ -> genre }) }
+    }
+
+    private suspend fun <T> safe(block: suspend () -> List<T>): List<T> = try {
+        block()
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        emptyList()
+    }
+
+    // ------------------------------------------------------------------
+    // Rangées
+    // ------------------------------------------------------------------
+
+    private fun addRow(spec: RowSpec) {
+        if (spec.items.isEmpty()) return
+        val view = layoutInflater.inflate(R.layout.view_nfx_row, rowsContainer, false)
+        view.findViewById<TextView>(R.id.tvRowTitle).text = spec.title
+        val rv = view.findViewById<RecyclerView>(R.id.rvRow)
+        if (spec.style == NetflixRowAdapter.Style.TOP10) {
+            rv.setPadding(rv.paddingLeft - (24 * resources.displayMetrics.density).toInt(), rv.paddingTop, rv.paddingRight, rv.paddingBottom)
+        }
+
+        var state: RowState? = null
+        val adapter = NetflixRowAdapter(
+            style = spec.style,
+            recentBadgeCount = spec.recentBadges,
+            onItemFocused = { item, pos -> state?.let { onCardFocused(it, item, pos) } },
+            onItemClicked = { openMediaDetail(it) }
+        )
+        rv.layoutManager = StartAlignLayoutManager(this)
+        rv.itemAnimator = null
+        rv.setHasFixedSize(true)
+        rv.adapter = adapter
+        adapter.submitList(spec.items)
+
+        state = RowState(view, rv, adapter, spec)
+        rows += state
+        rowsContainer.addView(view)
+    }
+
+    private fun onCardFocused(state: RowState, item: MediaItem, position: Int) {
+        if (heroMode) setHeroMode(false)
+        rowsScroll.post { rowsScroll.smoothScrollTo(0, state.view.top) }
+        val callout = state.spec.callout(item, position) ?: defaultCallout(item)
+        renderInfo(item, callout, state.spec.top10)
+
+        if (state.spec.loadMore != null && !state.loading && state.hasMore && position >= state.adapter.itemCount - 6) {
+            loadMoreRow(state)
+        }
+    }
+
+    private fun loadMoreRow(state: RowState) {
+        val loader = state.spec.loadMore ?: return
+        state.loading = true
+        val next = state.page + 1
+        val generation = pageGeneration
+        lifecycleScope.launch {
+            try {
+                val more = loader(next)
+                if (generation != pageGeneration) return@launch
+                val existing = state.adapter.currentItems()
+                val fresh = more.filter { m -> existing.none { it.id == m.id } }
+                state.page = next
+                state.hasMore = fresh.isNotEmpty()
+                if (fresh.isNotEmpty()) state.adapter.submitList(existing + fresh)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                state.hasMore = false
+            } finally {
+                state.loading = false
+            }
+        }
+    }
+
+    private fun focusRow(index: Int) {
+        val target = rows.getOrNull(index) ?: return
+        val lm = target.rv.layoutManager as LinearLayoutManager
+        val pos = lm.findFirstCompletelyVisibleItemPosition().takeIf { it >= 0 }
+            ?: lm.findFirstVisibleItemPosition().takeIf { it >= 0 } ?: 0
+        rowsScroll.smoothScrollTo(0, target.view.top)
+        val vh = target.rv.findViewHolderForAdapterPosition(pos)
+        if (vh != null) vh.itemView.requestFocus() else target.rv.requestFocus()
+    }
+
+    private fun refreshDynamicRows() {
+        if (currentPage == Page.SEARCH) return
+        val generation = pageGeneration
+        lifecycleScope.launch {
+            rows.toList().forEach { row ->
+                val fresh: List<MediaItem>? = when (row.spec.key) {
+                    "resume" -> {
+                        val all = jellyfinClient.getContinueWatching()
+                        when (currentPage) {
+                            Page.SERIES -> all.filter { it.type == MediaType.EPISODE }
+                            Page.MOVIES -> all.filter { it.type == MediaType.MOVIE }
+                            else -> all
+                        }
+                    }
+                    "mylist" -> SavedMediaStore(this@MainActivity, jellyfinClient.userId).items()
+                    else -> null
+                }
+                if (fresh != null && generation == pageGeneration && fresh.isNotEmpty()) row.adapter.submitList(fresh)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Billboard / Panneau d'informations
+    // ------------------------------------------------------------------
+
+    private fun setupHeroButtons() {
+        btnHeroPlay.setOnClickListener {
+            val hero = featuredItem ?: return@setOnClickListener
+            when {
+                hero.isSeerrMedia && hero.overseerrStatus != OverseerrStatus.AVAILABLE_ON_JELLYFIN -> openMediaDetail(hero)
+                hero.type == MediaType.MOVIE || hero.type == MediaType.EPISODE -> {
+                    startActivity(Intent(this, PlayerActivity::class.java).putExtra("media_item", hero))
+                }
+                else -> openMediaDetail(hero)
+            }
+        }
+        btnHeroMoreInfo.setOnClickListener { featuredItem?.let { openMediaDetail(it) } }
+    }
+
+    private fun setHeroMode(on: Boolean) {
+        heroMode = on
+        heroButtons.visibility = if (on && featuredItem != null) View.VISIBLE else View.GONE
+        if (on) {
+            rowsScroll.smoothScrollTo(0, 0)
+            val hero = featuredItem
+            if (hero != null) {
+                renderInfo(hero, featuredCallout ?: defaultCallout(hero), featuredTop10)
+                btnHeroPlay.text = when {
+                    hero.isSeerrMedia && hero.overseerrStatus != OverseerrStatus.AVAILABLE_ON_JELLYFIN ->
+                        if (hero.overseerrStatus == OverseerrStatus.REQUESTED || seerrClient.isAlreadyRequested(hero)) "⏳  Demandé" else "＋  Demander"
+                    hero.progressPercent > 0 -> "▶  Reprendre"
+                    else -> "▶  Lecture"
+                }
+            } else {
+                renderPlaceholder()
+            }
+        }
+    }
+
+    private fun renderPlaceholder() {
+        tvHeroCategoryTag.text = ""
+        ivHeroLogo.visibility = View.GONE
+        tvHeroTitle.visibility = View.VISIBLE
+        tvHeroTitle.text = "PLEZY"
+        tvHeroOverview.text = ""
+        tvHeroMeta.text = "16+"
+    }
+
+    private fun renderInfo(item: MediaItem, callout: String?, top10: Boolean) {
+        val isSeries = item.type == MediaType.SERIES || item.type == MediaType.EPISODE
+        val inLibrary = !item.isSeerrMedia || item.overseerrStatus == OverseerrStatus.AVAILABLE_ON_JELLYFIN
+
+        findViewById<View>(R.id.tvBrandLetter).visibility = if (inLibrary) View.VISIBLE else View.GONE
+        tvHeroCategoryTag.text = when {
+            !inLibrary && isSeries -> "S É R I E"
+            !inLibrary -> "F I L M"
+            isSeries -> "S É R I E"
+            else -> "F I L M"
+        }
+
+        val title = item.seriesName ?: item.title
+        tvHeroTitle.text = title
+        val logo = item.logoImageUrl
+        if (logo.isNullOrBlank()) {
+            lastLogoUrl = null
+            Glide.with(this).clear(ivHeroLogo)
+            ivHeroLogo.visibility = View.GONE
+            tvHeroTitle.visibility = View.VISIBLE
+        } else if (logo != lastLogoUrl) {
+            lastLogoUrl = logo
+            Glide.with(this).load(logo).override(640, 160).fitCenter()
+                .listener(object : RequestListener<Drawable> {
+                    override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
+                        if (lastLogoUrl == logo) {
+                            ivHeroLogo.visibility = View.GONE
+                            tvHeroTitle.visibility = View.VISIBLE
+                        }
+                        return false
+                    }
+
+                    override fun onResourceReady(resource: Drawable, model: Any, target: Target<Drawable>?, dataSource: DataSource, isFirstResource: Boolean): Boolean {
+                        if (lastLogoUrl == logo) {
+                            ivHeroLogo.visibility = View.VISIBLE
+                            tvHeroTitle.visibility = View.GONE
+                        }
+                        return false
+                    }
+                })
+                .into(ivHeroLogo)
+        }
+
+        // Synopsis (3-4 lignes sous les boutons comme dans la capture)
+        val overview = if (item.type == MediaType.EPISODE && !item.episodeTitle.isNullOrBlank()) {
+            "S${item.seasonNumber ?: 1}:É${item.episodeNumber ?: 1} « ${item.episodeTitle} » — ${item.overview}"
+        } else item.overview
+        tvHeroOverview.text = overview.ifBlank { "Sélectionnez ce titre pour lancer la lecture ou afficher les détails complets." }
+
+        // Tag classification à droite (style | 16+)
+        val rating = item.officialRating?.takeIf { it.isNotBlank() } ?: "16+"
+        tvHeroMeta.text = rating
+
+        // Visuel plein écran
+        val url = item.backdropImageUrl ?: item.thumbImageUrl ?: item.primaryImageUrl
+        backdropJob?.cancel()
+        if (url != null && url != lastBackdropUrl) {
+            backdropJob = lifecycleScope.launch {
+                delay(200)
+                lastBackdropUrl = url
+                Glide.with(this@MainActivity).load(url).override(1280, 720).centerCrop()
+                    .transition(DrawableTransitionOptions.withCrossFade(300))
+                    .into(ivHeroBackdrop)
+            }
+        }
+    }
+
+    private fun defaultCallout(item: MediaItem): String? = when {
+        item.progressPercent > 0 -> "Reprendre"
+        else -> null
+    }
+
+    // ------------------------------------------------------------------
+    // Recherche
+    // ------------------------------------------------------------------
+
+    private fun setupSearch() {
+        val rv = findViewById<RecyclerView>(R.id.rvSearchResults)
+        searchAdapter = NetflixRowAdapter(
+            style = NetflixRowAdapter.Style.TILE,
+            onItemFocused = { _, _ -> },
+            onItemClicked = { openMediaDetail(it) }
+        )
+        rv.layoutManager = GridLayoutManager(this, 4)
+        rv.itemAnimator = null
+        rv.adapter = searchAdapter
+
+        etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                runSearch(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+    }
+
+    private fun runSearch(query: String) {
+        searchJob?.cancel()
+        val status = findViewById<TextView>(R.id.tvSearchStatus)
+        searchJob = lifecycleScope.launch {
+            delay(300L)
+            if (query.isBlank()) {
+                val popular = safe { seerrClient.getCategoryItems(SeerrCategory.TRENDING, 1) }
+                searchAdapter.submitList(popular)
+                status.text = "Recherches populaires"
+                return@launch
+            }
+            val jf = jellyfinClient.searchItems(query)
+            val seerr = safe { seerrClient.searchOverseerr(query) }
+                .filter { s -> jf.none { it.title.equals(s.title, ignoreCase = true) } }
+            val matches = (jf + seerr).distinctBy { it.id }
+            if (etSearch.text.toString() == query) {
+                searchAdapter.submitList(matches)
+                status.text = if (matches.isEmpty()) "Aucun résultat pour « $query »" else "Films et séries"
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Réglages (Profil)
+    // ------------------------------------------------------------------
+
     private fun showSettingsMenu() {
-        val seerrState = if (seerrClient.isAuthenticated()) "Connected" else "Configure Login / API Key"
+        val seerrState = if (seerrClient.isAuthenticated()) "connecté" else "à configurer"
         val items = arrayOf(
-            "Configure Overseerr / Seerr ($seerrState)",
-            "Switch Jellyfin Profile (${jellyfinClient.currentUserName})",
-            "Jellyfin Server & Quick Connect (${jellyfinClient.serverUrl})"
+            "Changer de profil (${jellyfinClient.currentUserName})",
+            "Configurer Seerr ($seerrState)",
+            "Serveur Jellyfin & Quick Connect",
+            "Actualiser"
         )
         AlertDialog.Builder(this)
-            .setTitle("Settings")
+            .setTitle("Profil & réglages")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> showSeerrConfigDialog()
-                    1 -> showUserProfileSwitcher()
-                    2 -> {
-                        val intent = Intent(this, ServerSetupActivity::class.java)
-                        intent.putExtra("force_setup", true)
-                        startActivity(intent)
-                    }
+                    0 -> showUserProfileSwitcher()
+                    1 -> showSeerrConfigDialog()
+                    2 -> startActivity(Intent(this, ServerSetupActivity::class.java).putExtra("force_setup", true))
+                    3 -> openPage(currentPage)
                 }
             }
             .show()
@@ -261,404 +666,155 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(48, 28, 48, 12)
         }
+        val etUrl = EditText(this).apply {
+            hint = "Adresse Seerr (ex : http://IP:PORT)"
+            setText(seerrClient.seerrUrl)
+            setSingleLine(true)
+        }
         val etUserOrKey = EditText(this).apply {
-            hint = "Seerr Email / Username OR Seerr API Key"
+            hint = "E-mail Seerr OU clé API"
             setText(seerrClient.apiKey)
             setSingleLine(true)
         }
         val etPassword = EditText(this).apply {
-            hint = "Seerr Password (leave empty if using API Key)"
+            hint = "Mot de passe (vide si clé API)"
             setSingleLine(true)
         }
+        container.addView(etUrl)
         container.addView(etUserOrKey)
         container.addView(etPassword)
 
         AlertDialog.Builder(this)
-            .setTitle("Connect Seerr / Overseerr")
-            .setMessage("Enter your Seerr login (Email/Username + Password) or your Seerr API Key (Settings -> General in Seerr) to send downloads directly to Radarr, Sonarr & Transmission.")
+            .setTitle("Connexion à Seerr")
             .setView(container)
-            .setPositiveButton("Connect") { _, _ ->
+            .setPositiveButton("Connecter") { _, _ ->
+                etUrl.text?.toString()?.takeIf { it.isNotBlank() }?.let { seerrClient.seerrUrl = it }
                 val userOrKey = etUserOrKey.text?.toString().orEmpty()
                 val pass = etPassword.text?.toString().orEmpty()
                 lifecycleScope.launch {
-                    val res = seerrClient.authenticateSeerr(userOrKey, pass)
-                    res.onSuccess { msg ->
-                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
-                        loadAllContent()
-                    }.onFailure { err ->
-                        Toast.makeText(this@MainActivity, err.message ?: "Connection failed", Toast.LENGTH_LONG).show()
-                    }
+                    seerrClient.authenticateSeerr(userOrKey, pass)
+                        .onSuccess { msg ->
+                            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                            openPage(currentPage)
+                        }
+                        .onFailure { err ->
+                            Toast.makeText(this@MainActivity, err.message ?: "Échec de connexion", Toast.LENGTH_LONG).show()
+                        }
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Annuler", null)
             .show()
     }
 
     private fun showUserProfileSwitcher() {
         lifecycleScope.launch {
             val users = jellyfinClient.getPublicUsers()
-            val names = users.map { it.name }.toTypedArray()
-            if (names.isEmpty()) return@launch
-
+            if (users.isEmpty()) return@launch
             AlertDialog.Builder(this@MainActivity)
-                .setTitle("Select User Profile")
-                .setItems(names) { _, which ->
+                .setTitle("Qui est-ce ?")
+                .setItems(users.map { it.name }.toTypedArray()) { _, which ->
                     val chosen = users[which]
                     jellyfinClient.userId = chosen.id
                     jellyfinClient.currentUserName = chosen.name
-                    Toast.makeText(this@MainActivity, "Active profile: ${chosen.name}", Toast.LENGTH_SHORT).show()
-                    loadAllContent()
+                    findViewById<TextView>(R.id.navProfile).text = chosen.name.firstOrNull()?.uppercase() ?: "L"
+                    openPage(Page.HOME)
                 }
                 .show()
         }
     }
 
-    private fun setupLibraryTabsAndFilters() {
-        val tabRecommended = findViewById<TextView>(R.id.tabRecommended)
-        val tabBrowse = findViewById<TextView>(R.id.tabBrowse)
-        val tabCollections = findViewById<TextView>(R.id.tabCollections)
-        val tabPlaylists = findViewById<TextView>(R.id.tabPlaylists)
-
-        val jfTabs = listOf(tabBrowse, tabRecommended, tabCollections, tabPlaylists)
-        fun selectJfTab(active: TextView, tabName: String) {
-            jfTabs.forEach { it.isSelected = (it == active) }
-            currentTab = tabName
-            if (tabName == "Overseerr") {
-                switchToOverseerrView(SeerrCategory.TRENDING)
-            } else {
-                rowJellyfinFilters.visibility = View.VISIBLE
-                rowOverseerrFilters.visibility = View.GONE
-                refreshLibraryGrid()
-            }
-        }
-
-        tabBrowse.isSelected = true
-        tabBrowse.setOnClickListener { selectJfTab(tabBrowse, "Browse") }
-        tabRecommended.setOnClickListener { selectJfTab(tabRecommended, "Recommended") }
-        tabCollections.setOnClickListener { selectJfTab(tabCollections, "Collections") }
-        tabPlaylists.setOnClickListener { selectJfTab(tabPlaylists, "Overseerr") }
-
-        val btnFilterType = findViewById<TextView>(R.id.btnFilterType)
-        val btnFilterUnplayed = findViewById<TextView>(R.id.btnFilterUnplayed)
-        val btnSort = findViewById<TextView>(R.id.btnSort)
-
-        btnFilterType.setOnClickListener {
-            when (currentItemType) {
-                "Movie,Series" -> {
-                    currentItemType = "Movie"
-                    btnFilterType.text = "Films"
-                }
-                "Movie" -> {
-                    currentItemType = "Series"
-                    btnFilterType.text = "Séries"
-                }
-                else -> {
-                    currentItemType = "Movie,Series"
-                    btnFilterType.text = "Tous les types"
-                }
-            }
-            refreshLibraryGrid()
-        }
-
-        btnFilterUnplayed.setOnClickListener {
-            onlyUnplayed = !onlyUnplayed
-            btnFilterUnplayed.text = if (onlyUnplayed) "Non-vus" else "Tous"
-            refreshLibraryGrid()
-        }
-
-        btnSort.setOnClickListener {
-            when (currentSortBy) {
-                "SortName" -> {
-                    currentSortBy = "CommunityRating"
-                    btnSort.text = "Tri: Note"
-                }
-                "CommunityRating" -> {
-                    currentSortBy = "ProductionYear"
-                    btnSort.text = "Tri: Année"
-                }
-                else -> {
-                    currentSortBy = "SortName"
-                    btnSort.text = "Tri: Titre"
-                }
-            }
-            refreshLibraryGrid()
-        }
-
-        // Configuration des onglets Seerr
-        val seerrTabTrending = findViewById<TextView>(R.id.seerrTabTrending)
-        val seerrTabMovies = findViewById<TextView>(R.id.seerrTabMovies)
-        val seerrTabTv = findViewById<TextView>(R.id.seerrTabTv)
-        val seerrTabUpcoming = findViewById<TextView>(R.id.seerrTabUpcoming)
-        val seerrTabRequests = findViewById<TextView>(R.id.seerrTabRequests)
-        val btnBackToJf = findViewById<TextView>(R.id.btnSeerrSwitchToJellyfin)
-
-        val seerrTabs = listOf(seerrTabTrending, seerrTabMovies, seerrTabTv, seerrTabUpcoming, seerrTabRequests)
-        fun selectSeerrTab(active: TextView, category: SeerrCategory) {
-            seerrTabs.forEach { it.isSelected = (it == active) }
-            loadSeerrCategory(category)
-        }
-
-        seerrTabTrending.isSelected = true
-        seerrTabTrending.setOnClickListener { selectSeerrTab(seerrTabTrending, SeerrCategory.TRENDING) }
-        seerrTabMovies.setOnClickListener { selectSeerrTab(seerrTabMovies, SeerrCategory.MOVIES) }
-        seerrTabTv.setOnClickListener { selectSeerrTab(seerrTabTv, SeerrCategory.TV) }
-        seerrTabUpcoming.setOnClickListener { selectSeerrTab(seerrTabUpcoming, SeerrCategory.UPCOMING) }
-        seerrTabRequests.setOnClickListener { selectSeerrTab(seerrTabRequests, SeerrCategory.REQUESTS) }
-
-        btnBackToJf.setOnClickListener {
-            currentTab = "Browse"
-            rowJellyfinFilters.visibility = View.VISIBLE
-            rowOverseerrFilters.visibility = View.GONE
-            tabBrowse.isSelected = true
-            tabPlaylists.isSelected = false
-            refreshLibraryGrid()
-        }
-    }
-
-    private fun switchToOverseerrView(category: SeerrCategory = SeerrCategory.TRENDING) {
-        currentTab = "Overseerr"
-        rowJellyfinFilters.visibility = View.GONE
-        rowOverseerrFilters.visibility = View.VISIBLE
-        showContainer(libraryContainer)
-        findViewById<TextView>(R.id.seerrTabTrending).isSelected = (category == SeerrCategory.TRENDING)
-        findViewById<TextView>(R.id.seerrTabMovies).isSelected = (category == SeerrCategory.MOVIES)
-        findViewById<TextView>(R.id.seerrTabTv).isSelected = (category == SeerrCategory.TV)
-        findViewById<TextView>(R.id.seerrTabUpcoming).isSelected = (category == SeerrCategory.UPCOMING)
-        findViewById<TextView>(R.id.seerrTabRequests).isSelected = (category == SeerrCategory.REQUESTS)
-        loadSeerrCategory(category)
-        findViewById<View>(R.id.seerrTabTrending).requestFocus()
-    }
-
-    private fun loadSeerrCategory(category: SeerrCategory) {
-        gridJob?.cancel()
-        val generation = ++gridGeneration
-        currentSeerrCategory = category
-        seerrPage = 1
-        seerrHasMore = true
-        seerrLoadedItems.clear()
-        libraryGridAdapter.submitList(emptyList())
-        isSeerrLoading = true
-        gridJob = lifecycleScope.launch {
-            try {
-                val items = seerrClient.getCategoryItems(category, 1)
-                if (generation == gridGeneration && currentTab == "Overseerr") {
-                    seerrLoadedItems.addAll(items.distinctBy { it.id })
-                    libraryGridAdapter.submitList(ArrayList(seerrLoadedItems))
-                    seerrHasMore = items.isNotEmpty()
-                }
-            } finally { if (generation == gridGeneration) isSeerrLoading = false }
-        }
-    }
-
-    private fun loadNextSeerrPage() {
-        if (isSeerrLoading || !seerrHasMore || currentSeerrCategory == SeerrCategory.REQUESTS) return
-        val generation = gridGeneration
-        val category = currentSeerrCategory
-        val nextPage = seerrPage + 1
-        isSeerrLoading = true
-        gridJob = lifecycleScope.launch {
-            try {
-                val more = seerrClient.getCategoryItems(category, nextPage)
-                if (generation == gridGeneration && currentTab == "Overseerr") {
-                    val fresh = more.filter { item -> seerrLoadedItems.none { it.id == item.id } }
-                    seerrHasMore = fresh.isNotEmpty()
-                    seerrPage = nextPage
-                    seerrLoadedItems.addAll(fresh)
-                    libraryGridAdapter.submitList(ArrayList(seerrLoadedItems))
-                }
-            } finally { if (generation == gridGeneration) isSeerrLoading = false }
-        }
-    }
-
-    private fun setupSearchInput() {
-        val etSearch = findViewById<EditText>(R.id.etSearchQuery)
-        etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                searchJob?.cancel()
-                val query = s?.toString().orEmpty()
-                searchJob = lifecycleScope.launch {
-                    delay(250L)
-                    val jellyfinMatches = jellyfinClient.searchItems(query)
-                    val overseerrMatches = seerrClient.searchOverseerr(query)
-                    if (etSearch.text.toString() == query) {
-                        val matches = (jellyfinMatches + overseerrMatches).distinctBy { it.id }
-                        searchAdapter.submitList(matches)
-                        findViewById<TextView>(R.id.tvSearchStatus).text = if (query.isBlank()) "Recherchez un film ou une série" else if (matches.isEmpty()) "Aucun résultat pour « $query »" else "${matches.size} résultats"
-                    }
-                }
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-    }
-
-    private fun setupRecyclerViews() {
-        val rvContinue = findViewById<RecyclerView>(R.id.rvContinueWatching)
-        val rvHomeMovies = findViewById<RecyclerView>(R.id.rvHomeMovies)
-        val rvRecent = findViewById<RecyclerView>(R.id.rvRecentlyAdded)
-        val rvOverseerr = findViewById<RecyclerView>(R.id.rvOverseerrTrending)
-        val rvLibraryGrid = findViewById<RecyclerView>(R.id.rvLibraryGrid)
-        val rvSearchResults = findViewById<RecyclerView>(R.id.rvSearchResults)
-        val rvDownloads = findViewById<RecyclerView>(R.id.rvDownloads)
-
-        continueAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.LANDSCAPE,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        homeMoviesAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.POSTER,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        recentAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.POSTER,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        overseerrTrendingAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.POSTER,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        libraryGridAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.POSTER,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        searchAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.POSTER,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        downloadsAdapter = MediaCardAdapter(
-            style = MediaCardAdapter.CardStyle.LANDSCAPE,
-            onItemFocused = { updateAmbientBackdrop(it) },
-            onItemClicked = { openMediaDetail(it) }
-        )
-
-        rvContinue.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        rvContinue.setHasFixedSize(true)
-        rvContinue.adapter = continueAdapter
-
-        rvHomeMovies.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        rvHomeMovies.setHasFixedSize(true)
-        rvHomeMovies.adapter = homeMoviesAdapter
-
-        rvRecent.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        rvRecent.setHasFixedSize(true)
-        rvRecent.adapter = recentAdapter
-
-        rvOverseerr.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        rvOverseerr.setHasFixedSize(true)
-        rvOverseerr.adapter = overseerrTrendingAdapter
-
-        val gridLayout = GridLayoutManager(this, 5)
-        rvLibraryGrid.layoutManager = gridLayout
-        rvLibraryGrid.setHasFixedSize(true)
-        rvLibraryGrid.adapter = libraryGridAdapter
-        rvLibraryGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                super.onScrolled(recyclerView, dx, dy)
-                if (currentTab == "Overseerr" && dy > 0) {
-                    val visible = gridLayout.childCount
-                    val total = gridLayout.itemCount
-                    val first = gridLayout.findFirstVisibleItemPosition()
-                    if (first + visible >= total - 6) {
-                        loadNextSeerrPage()
-                    }
-                }
-            }
-        })
-
-        rvSearchResults.layoutManager = GridLayoutManager(this, 5)
-        rvSearchResults.setHasFixedSize(true)
-        rvSearchResults.adapter = searchAdapter
-
-        rvDownloads.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        rvDownloads.setHasFixedSize(true)
-        rvDownloads.adapter = downloadsAdapter
-    }
-
-    private fun loadAllContent() {
-        contentJob?.cancel()
-        contentJob = lifecycleScope.launch {
-            val status = findViewById<TextView>(R.id.tvHomeStatus)
-            status.visibility = View.VISIBLE
-            status.text = "Chargement de votre bibliothèque…"
-            coroutineScope {
-                val resume = async { jellyfinClient.getContinueWatching() }
-                val movies = async { jellyfinClient.getRecentlyAddedMovies() }
-                val shows = async { jellyfinClient.getRecentlyAdded("Series") }
-                val seerr = async { seerrClient.getTrendingDiscover() }
-                val continueItems = resume.await()
-                val movieItems = movies.await()
-                val showItems = shows.await()
-                continueAdapter.submitList(continueItems)
-                homeMoviesAdapter.submitList(movieItems)
-                recentAdapter.submitList(showItems)
-                findViewById<View>(R.id.tvContinueHeader).visibility = if (continueItems.isEmpty()) View.GONE else View.VISIBLE
-                findViewById<View>(R.id.rvContinueWatching).visibility = if (continueItems.isEmpty()) View.GONE else View.VISIBLE
-                status.text = if (movieItems.isEmpty() && showItems.isEmpty()) "Bibliothèque vide ou serveur indisponible. Réessayez avec Actualiser." else ""
-                status.visibility = if (status.text.isEmpty()) View.GONE else View.VISIBLE
-                if (homeContainer.visibility == View.VISIBLE) (continueItems.firstOrNull() ?: movieItems.firstOrNull() ?: showItems.firstOrNull())?.let { updateAmbientBackdrop(it) }
-                overseerrTrendingAdapter.submitList(seerr.await())
-            }
-            refreshOfflineDownloads()
-        }
-    }
-
-    private fun refreshOfflineDownloads() {
-        val saved = com.plezy.jellyfin.data.local.SavedMediaStore(this, jellyfinClient.userId).items()
-        downloadsAdapter.submitList((saved + offlineManager.getDownloadedItems()).distinctBy { it.id })
-    }
-
-    private fun refreshLibraryGrid() {
-        if (currentTab == "Overseerr") { loadSeerrCategory(currentSeerrCategory); return }
-        gridJob?.cancel()
-        val generation = ++gridGeneration
-        val tab = currentTab
-        val type = currentItemType
-        val sort = currentSortBy
-        val unplayed = onlyUnplayed
-        listOf(R.id.tabBrowse, R.id.tabRecommended, R.id.tabCollections).forEachIndexed { index, id ->
-            findViewById<View>(id).isSelected = tab == listOf("Browse", "Recommended", "Collections")[index]
-        }
-        gridJob = lifecycleScope.launch {
-            val items = jellyfinClient.getLibraryCatalog(tab, type, sort,
-                if (sort == "SortName") "Ascending" else "Descending", unplayed)
-            if (generation == gridGeneration && currentTab == tab) libraryGridAdapter.submitList(items)
-        }
-    }
-
-    private fun updateAmbientBackdrop(item: MediaItem) {
-        findViewById<TextView>(R.id.tvHeroTitle).text = item.seriesName ?: item.title
-        findViewById<TextView>(R.id.tvHeroMeta).text = listOfNotNull(item.productionYear?.toString(), item.formattedDuration.takeIf { it.isNotBlank() }, item.communityRating?.let { "★ %.1f".format(it) }).joinToString("   ·   ")
-        findViewById<TextView>(R.id.tvHeroOverview).text = item.overview
-        ambientJob?.cancel()
-        ambientJob = lifecycleScope.launch {
-            delay(180)
-            Glide.with(this@MainActivity).load(item.backdropImageUrl ?: item.primaryImageUrl)
-                .override(960, 540).centerCrop().into(ivHeroBackdrop)
-        }
-    }
-
     private fun openMediaDetail(item: MediaItem) {
-        val intent = Intent(this, MediaDetailActivity::class.java)
-        intent.putExtra("media_item", item)
-        startActivity(intent)
+        startActivity(Intent(this, MediaDetailActivity::class.java).putExtra("media_item", item))
+    }
+
+    // ------------------------------------------------------------------
+    // Télécommande D-Pad (Navigation fluide Sidebar <-> Billboard <-> Rails)
+    // ------------------------------------------------------------------
+
+    private fun isInside(parent: View, view: View?): Boolean {
+        var v: View? = view
+        while (v != null) {
+            if (v === parent) return true
+            v = v.parent as? View
+        }
+        return false
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val focus = currentFocus
+            val rowIndex = rows.indexOfFirst { focus != null && focus.parent === it.rv }
+
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (isInside(heroButtons, focus) && focus == btnHeroPlay) {
+                        navTabs[currentPage]?.requestFocus() ?: findViewById<View>(R.id.navHome).requestFocus()
+                        return true
+                    }
+                    if (rowIndex >= 0) {
+                        val row = rows[rowIndex]
+                        val lm = row.rv.layoutManager as? LinearLayoutManager
+                        val firstPos = lm?.findFirstVisibleItemPosition() ?: 0
+                        val holder = focus?.let { row.rv.findContainingViewHolder(it) }
+                        if (holder?.bindingAdapterPosition == 0 || firstPos == 0 && focus == holder?.itemView) {
+                            navTabs[currentPage]?.requestFocus() ?: findViewById<View>(R.id.navHome).requestFocus()
+                            return true
+                        }
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (isInside(sidebarContainer, focus)) {
+                        if (currentPage == Page.SEARCH) {
+                            etSearch.requestFocus()
+                        } else if (heroMode && featuredItem != null) {
+                            btnHeroPlay.requestFocus()
+                        } else if (rows.isNotEmpty()) {
+                            focusRow(0)
+                        }
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (currentPage != Page.SEARCH) {
+                        if (rowIndex == 0) {
+                            setHeroMode(true)
+                            if (featuredItem != null) btnHeroPlay.requestFocus()
+                            return true
+                        }
+                        if (rowIndex > 0) {
+                            focusRow(rowIndex - 1)
+                            return true
+                        }
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (currentPage != Page.SEARCH) {
+                        if (rowIndex >= 0) {
+                            if (rowIndex < rows.lastIndex) focusRow(rowIndex + 1)
+                            return true
+                        }
+                        if (isInside(heroButtons, focus)) {
+                            if (rows.isNotEmpty()) focusRow(0)
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK && homeContainer.visibility != View.VISIBLE) {
-            showContainer(homeContainer)
-            return true
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (!isInside(sidebarContainer, currentFocus)) {
+                navTabs[currentPage]?.requestFocus() ?: findViewById<View>(R.id.navHome).requestFocus()
+                return true
+            }
+            if (currentPage != Page.HOME) {
+                openPage(Page.HOME)
+                navTabs[Page.HOME]?.requestFocus()
+                return true
+            }
         }
         return super.onKeyDown(keyCode, event)
     }

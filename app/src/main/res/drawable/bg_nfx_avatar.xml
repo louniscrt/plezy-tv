@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Avatar de profil carré bleu Netflix, contour blanc au focus -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#2B7BE4" />
+            <stroke android:width="2dp" android:color="#FFFFFF" />
+            <corners android:radius="5dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#2B7BE4" />
+            <corners android:radius="5dp" />
+        </shape>
+    </item>
+</selector>

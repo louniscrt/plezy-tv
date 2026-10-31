@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dégradé horizontal Netflix : noir à gauche (zone texte) -> transparent à droite -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:startColor="#F2000000"
+        android:centerColor="#8C000000"
+        android:centerX="0.42"
+        android:endColor="#00000000" />
+</shape>

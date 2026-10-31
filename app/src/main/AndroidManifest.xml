@@ -41,7 +41,7 @@
         <!-- Écran principal (Accueil + Bibliothèque type Plezy) -->
         <activity
             android:name=".ui.main.MainActivity"
-            android:exported="false"
+            android:exported="true"
             android:screenOrientation="landscape" />
 
         <!-- Écran Détails Média / Saisons & Épisodes (tv-md) -->

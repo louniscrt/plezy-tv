@@ -153,8 +153,7 @@ class SeerrClient(context: Context) {
         if (category == SeerrCategory.REQUESTS) {
             fetchRequestsList(endpoint)
         } else {
-            val list = fetchSeerrList(endpoint)
-            if (list.isNotEmpty()) list else if (page == 1) DemoCatalog.overseerrTrending else emptyList()
+            fetchSeerrList(endpoint)
         }
     }
 
@@ -163,15 +162,7 @@ class SeerrClient(context: Context) {
     suspend fun searchOverseerr(query: String, page: Int = 1): List<MediaItem> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext getTrendingDiscover()
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val live = fetchSeerrList("$seerrUrl/api/v1/search?query=$encoded&page=$page")
-        if (live.isNotEmpty()) {
-            live
-        } else {
-            DemoCatalog.overseerrTrending.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                        it.overview.contains(query, ignoreCase = true)
-            }
-        }
+        fetchSeerrList("$seerrUrl/api/v1/search?query=$encoded&page=$page")
     }
 
     /**

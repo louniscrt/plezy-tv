@@ -377,7 +377,8 @@ class JellyfinClient(context: Context) {
         includeItemTypes: String = "Series",
         sortBy: String = "SortName",
         sortOrder: String = "Ascending",
-        onlyUnplayed: Boolean = false
+        onlyUnplayed: Boolean = false,
+        limit: Int = 60
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         if (isDemoMode || !isConfigured()) {
             val base = when (tab) {
@@ -406,7 +407,7 @@ class JellyfinClient(context: Context) {
         val endpoint = "$serverUrl/Users/$userId/Items?Recursive=true" +
                 "&IncludeItemTypes=$targetTypes" +
                 "&SortBy=$targetSort&SortOrder=$targetOrder" +
-                "$filterParam&Limit=60" +
+                "$filterParam&Limit=$limit" +
                 "&Fields=Overview,CommunityRating,OfficialRating,MediaSources,Chapters,Genres,People,ProviderIds"
         fetchItemsList(endpoint)
     }

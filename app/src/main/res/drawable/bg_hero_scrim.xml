@@ -1,1 +1,23 @@
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><shape><gradient android:angle="0" android:startColor="#EE090D16" android:endColor="#44090D16"/></shape></item><item><shape><gradient android:angle="90" android:startColor="#F5090D16" android:centerColor="#88090D16" android:endColor="#44090D16"/></shape></item></layer-list>
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Dégradé horizontal gauche -> droite (laisse briller l'image à droite comme Netflix) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#F207090F"
+                android:centerColor="#9407090F"
+                android:endColor="#1807090F" />
+        </shape>
+    </item>
+    <!-- Dégradé vertical bas -> haut (fond noir profond sous les rails du bas) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#FC07090F"
+                android:centerColor="#6607090F"
+                android:endColor="#1407090F" />
+        </shape>
+    </item>
+</layer-list>

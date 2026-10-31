@@ -183,7 +183,7 @@ class MediaDetailActivity : AppCompatActivity() {
                     Toast.makeText(this, "Bande-annonce: ${target.trailerUrl}", Toast.LENGTH_LONG).show()
                 }
             } else if (!target.isReadyToPlay) {
-                triggerOverseerrRequest(target)
+                showSeerrAuthDialog(target)
             } else {
                 val options = arrayOf(
                     "▶ Lecture depuis le début (00:00)",
@@ -464,7 +464,8 @@ class MediaDetailActivity : AppCompatActivity() {
         }
 
         tvEpisodeSubtitle.text = item.infuseEpisodeHeader
-        tvMeta.text = "${item.formattedDuration}   ${item.formattedDateOrYear}"
+        tvEpisodeSubtitle.visibility = if (item.infuseEpisodeHeader.isBlank()) View.GONE else View.VISIBLE
+        tvMeta.text = listOfNotNull(item.formattedDateOrYear.takeIf { it.isNotBlank() }, item.formattedDuration.takeIf { it.isNotBlank() }).joinToString("   ")
         tvTechRatingBadge.text = item.officialRating.orEmpty()
         tvTechRatingBadge.visibility = if (item.officialRating.isNullOrBlank()) View.GONE else View.VISIBLE
         findViewById<View>(R.id.btnRateStar).isSelected = item.isFavorite
@@ -473,12 +474,14 @@ class MediaDetailActivity : AppCompatActivity() {
         isWatchedState = item.isPlayed
         btnMarkWatched.isSelected = isWatchedState
         findViewById<View>(R.id.btnShuffle).isSelected = savedStore.contains(item.id)
-        tvMetaRight.text = "${item.resolutionBadge}   ${item.audioFormatLabel}"
-        tvGenres.text = item.genres.joinToString(" · ")
+        tvMetaRight.text = "${item.resolutionBadge}   ${item.audioFormatLabel}".trim()
+        val typePrefix = if (item.isSeerrMedia) "SEERR" else if (item.type == MediaType.SERIES || item.type == MediaType.EPISODE) "SÉRIE" else "FILM"
+        val genresJoined = item.genres.take(3).joinToString(" · ")
+        tvGenres.text = if (genresJoined.isNotBlank()) "$typePrefix  ·  $genresJoined" else typePrefix
 
-        tvTmdbRating.text = item.communityRating?.let { "★ %.1f / 10".format(it) } ?: ""
-        tvMetacriticScore.text = item.criticRating?.let { "Critiques : $it %" } ?: ""
-        tvMetacriticScore.visibility = if (item.criticRating == null) View.GONE else View.VISIBLE
+        tvTmdbRating.text = item.communityRating?.let { "★ %.1f".format(it) } ?: ""
+        tvTmdbRating.visibility = if (item.communityRating == null) View.GONE else View.VISIBLE
+        tvMetacriticScore.visibility = View.GONE
         tvTraktScore.visibility = View.GONE
 
         tvOverview.text = item.overview
@@ -496,14 +499,18 @@ class MediaDetailActivity : AppCompatActivity() {
 
         if (!item.isReadyToPlay) {
             btnPlayEpisode.text = if (item.overseerrStatus == OverseerrStatus.REQUESTED || seerrClient.isAlreadyRequested(item)) {
-                "⏳ Demandé (En cours)"
+                "⏳  Demandé"
             } else {
-                "＋ Demander sur Seerr"
+                "＋  Demander"
             }
-            btnOverseerrRequest.text = if (!item.trailerUrl.isNullOrBlank()) "▶ Bande-annonce" else "ℹ Info Seerr"
+            btnOverseerrRequest.text = if (!item.trailerUrl.isNullOrBlank()) "Bande-annonce" else "Réglages Seerr"
+            findViewById<View>(R.id.btnShuffle).visibility = View.GONE
+            findViewById<View>(R.id.btnMore).visibility = View.GONE
         } else {
             btnPlayEpisode.text = item.resumeLabel
-            btnOverseerrRequest.text = if (!item.trailerUrl.isNullOrBlank()) "▶ Bande-annonce" else "Options"
+            btnOverseerrRequest.text = if (!item.trailerUrl.isNullOrBlank()) "Bande-annonce" else "Options"
+            findViewById<View>(R.id.btnShuffle).visibility = View.VISIBLE
+            findViewById<View>(R.id.btnMore).visibility = View.VISIBLE
         }
 
         val backdrop = item.backdropImageUrl ?: item.primaryImageUrl
