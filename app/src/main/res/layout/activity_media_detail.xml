@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0B0C10">
+
+    <!-- Artwork 16:9 plein écran (lumineux à droite exactement comme l'image 1 Mad Men) -->
+    <ImageView
+        android:id="@+id/ivDetailBackdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.88"
+        android:scaleType="centerCrop" />
+
+    <!-- Dégradé asymétrique Infuse 8 (assombrit uniquement la gauche et le bas) -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_infuse_detail_scrim" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingLeft="44dp" android:paddingRight="44dp"
+        android:paddingTop="38dp"
+        android:paddingBottom="36dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ClearLogo officiel transparent Jellyfin ("MAD MEN" / "OCEAN'S ELEVEN") -->
+            <ImageView
+                android:id="@+id/ivDetailLogo"
+                android:layout_width="280dp"
+                android:layout_height="68dp"
+                android:scaleType="fitStart"
+                android:visibility="gone" />
+
+            <!-- Titre typographique Infuse (affiché si aucun ClearLogo PNG n'est présent) -->
+            <TextView
+                android:id="@+id/tvDetailTitle"
+                android:layout_width="560dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.03"
+                android:maxLines="2"
+                android:text="MAD MEN"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="38sp"
+                android:textStyle="bold" />
+
+            <!-- Sous-titre de l'épisode ("S1 • E2 - Ladies Room") -->
+            <TextView
+                android:id="@+id/tvDetailEpisodeSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="S1 • E2 - Ladies Room"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <!-- Ligne technique Infuse : "48 min   Jul 26, 2007   [TV-14]   1080p   DTS-HD MA 5.1" -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvDetailMeta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="48 min   Jul 26, 2007"
+                    android:textColor="#D6D9E0"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvTechRatingBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="10dp" android:layout_marginRight="10dp"
+                    android:background="@drawable/bg_rating_outline"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="TV-14"
+                    android:textColor="#E2E5EC"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailMetaRight" android:layout_marginLeft="10dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="1080p   DTS-HD MA 5.1"
+                    android:textColor="#D6D9E0"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Genres ("Drama") -->
+            <TextView
+                android:id="@+id/tvDetailGenres"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Drama"
+                android:textColor="#B8BDC8"
+                android:textSize="12sp" />
+
+            <!-- Rangée des notes Infuse : THE MOVIE DB 7.6  |  [77] m  |  73% -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-black"
+                    android:lineSpacingMultiplier="0.78"
+                    android:text=""
+                    android:textColor="#01D277"
+                    android:textSize="6.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTmdbRating"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="7.6"
+                    android:textColor="#F0F2F7"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvMetacriticScore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_rating_outline"
+                    android:gravity="center"
+                    android:text="77"
+                    android:textColor="#C6D4E6"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="4dp"
+                    android:background="#F5C518"
+                    android:gravity="center"
+                    android:text="" android:visibility="gone"
+                    android:textColor="#0B0C10"
+                    android:textSize="9sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTraktScore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="73%"
+                    android:textColor="#EC4899"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Synopsis (3 lignes max exactement comme sur l'image 1) -->
+            <TextView
+                android:id="@+id/tvDetailOverview"
+                android:layout_width="500dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:ellipsize="end"
+                android:lineSpacingExtra="3dp"
+                android:maxLines="3"
+                android:text="Don continues to conceal his increasingly complicated personal life, even in the face of Roger Sterling's invitation to open up. Meanwhile, Peggy pines for the absent Pete still on his honeymoon."
+                android:textColor="#D8DCE3"
+                android:textSize="12sp" />
+
+            <!-- ==================================================================== -->
+            <!-- RANGÉE 1 INFUSE : 5 PILULES OVALES LIQUID GLASS VECTORIELLES         -->
+            <!-- [ Eye ]   [ Bookmark ]   [ Star ]   [ AddBox ]   [ ••• ]             -->
+            <!-- ==================================================================== -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- 1. Eye (Vu / Non-vu) -->
+                <FrameLayout
+                    android:id="@+id/btnMarkWatched" android:contentDescription="Marquer comme vu ou non vu"
+                    android:layout_width="56dp"
+                    android:layout_height="34dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:duplicateParentState="true"
+                        android:src="@drawable/ic_infuse_eye"
+                        app:tint="@color/pill_text_color" />
+                </FrameLayout>
+
+                <!-- 2. Bookmark (Watchlist) -->
+                <FrameLayout
+                    android:id="@+id/btnShuffle" android:contentDescription="Ajouter à Ma liste"
+                    android:layout_width="56dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="17dp"
+                        android:layout_height="17dp"
+                        android:layout_gravity="center"
+                        android:duplicateParentState="true"
+                        android:src="@drawable/ic_infuse_bookmark"
+                        app:tint="@color/pill_text_color" />
+                </FrameLayout>
+
+                <!-- 3. Star (Favoris / Note) -->
+                <FrameLayout
+                    android:id="@+id/btnRateStar" android:contentDescription="Favori Jellyfin"
+                    android:layout_width="56dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:duplicateParentState="true"
+                        android:src="@drawable/ic_infuse_star"
+                        app:tint="@color/pill_text_color" />
+                </FrameLayout>
+
+                <!-- 4. Add Box (Ajouter / Télécharger / Seerr) -->
+                <FrameLayout
+                    android:id="@+id/btnDownload" android:contentDescription="Télécharger"
+                    android:layout_width="56dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:duplicateParentState="true"
+                        android:src="@drawable/ic_infuse_add_box"
+                        app:tint="@color/pill_text_color" />
+                </FrameLayout>
+
+                <!-- 5. More Dots (•••) -->
+                <FrameLayout
+                    android:id="@+id/btnMore" android:contentDescription="Plus d’options"
+                    android:layout_width="56dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:duplicateParentState="true"
+                        android:src="@drawable/ic_infuse_more_dots"
+                        app:tint="@color/pill_text_color" />
+                </FrameLayout>
+
+                <View
+                    android:id="@+id/btnBack"
+                    android:layout_width="1dp"
+                    android:layout_height="1dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- ==================================================================== -->
+            <!-- RANGÉE 2 INFUSE : 2 GRANDS BOUTONS PILULES LIQUID GLASS              -->
+            <!-- [     Resume 00:01:39     ]     [          Trailer          ]        -->
+            <!-- ==================================================================== -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnPlayEpisode"
+                    android:layout_width="212dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_infuse_resume_pill"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="Resume 00:01:39"
+                    android:textAllCaps="false"
+                    android:textColor="@color/pill_text_color"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnOverseerrRequest"
+                    android:layout_width="212dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="Trailer"
+                    android:textAllCaps="false"
+                    android:textColor="@color/pill_text_color"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- ==================================================================== -->
+            <!-- RAIL DES ÉPISODES ("Season 1") AVEC TRIANGLE ORANGE EN COIN          -->
+            <!-- ==================================================================== -->
+            <TextView
+                android:id="@+id/tvSeason1Header"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="Season 1"
+                android:textColor="#F3F4F6"
+                android:textSize="14.5sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvSeason1"
+                android:layout_width="match_parent"
+                android:layout_height="170dp"
+                android:clipToPadding="false" />
+
+            <!-- ==================================================================== -->
+            <!-- RAIL CAST AND CREW AVEC PHOTOS DES ACTEURS (Image 1 bas d'écran)     -->
+            <!-- ==================================================================== -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="Distribution"
+                android:textColor="#F3F4F6"
+                android:textSize="14.5sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvCastCrew"
+                android:layout_width="match_parent"
+                android:layout_height="168dp"
+                android:clipToPadding="false" />
+
+            <TextView
+                android:id="@+id/tvCastList"
+                android:layout_width="1dp"
+                android:layout_height="1dp"
+                android:visibility="gone" />
+
+            <!-- Saison 2 (si applicable) -->
+            <TextView
+                android:id="@+id/tvSeason2Header"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="Season 2"
+                android:textColor="#F3F4F6"
+                android:textSize="14.5sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvSeason2"
+                android:layout_width="match_parent"
+                android:layout_height="152dp"
+                android:clipToPadding="false"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- ExoPlayer bundles DownloadService, but Plezy does not declare or start it.
+         Keep notification checks enabled for all actual application code. -->
+    <issue id="NotificationPermission">
+        <ignore regexp=".*com.google.android.exoplayer2.offline.DownloadService.ForegroundNotificationUpdater.*" />
+    </issue>
+</lint>

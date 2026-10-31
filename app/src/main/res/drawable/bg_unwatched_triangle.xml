@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Triangle orange Infuse en haut à droite des épisodes non vus (comme sur Mad Men 3, 4, 5) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="26dp"
+    android:height="26dp"
+    android:viewportWidth="26"
+    android:viewportHeight="26">
+    <path
+        android:fillColor="#FF8800"
+        android:pathData="M0,0 L26,0 L26,26 Z" />
+</vector>

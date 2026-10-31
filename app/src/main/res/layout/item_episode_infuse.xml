@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Carte Épisode identique à Infuse "Season 1" (Mad Men image 1) avec triangle orange en coin haut-droit -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cardRoot"
+    android:layout_width="208dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="16dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:padding="3dp">
+
+    <FrameLayout android:duplicateParentState="true"
+        android:layout_width="match_parent"
+        android:layout_height="114dp"
+        android:background="@drawable/bg_card_focus"
+        android:padding="2dp">
+
+        <ImageView
+            android:id="@+id/ivThumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_rounded_image_14"
+            android:scaleType="centerCrop" />
+
+        <!-- Triangle diagonal orange Infuse en haut à droite pour les épisodes non vus (épisodes 3, 4, 5) -->
+        <ImageView
+            android:id="@+id/ivUnwatchedTriangle"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:src="@drawable/bg_unwatched_triangle" />
+
+        <!-- Barre de progression orange fine en bas à gauche (épisode 2) -->
+        <ProgressBar
+            android:id="@+id/pbProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3.5dp"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progress="25"
+            android:progressBackgroundTint="#00000000"
+            android:progressTint="@color/infuse_orange" />
+
+        <TextView
+            android:id="@+id/tvCornerTag"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- Titre aligné à gauche sous la miniature : "1. Smoke Gets in Your Eyes" -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="1. Smoke Gets in Your Eyes"
+        android:textColor="#E4E7EE"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
+
+</LinearLayout>

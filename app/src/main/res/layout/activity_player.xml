@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:keepScreenOn="true">
+
+    <!-- Surface vidéo ExoPlayer -->
+    <com.google.android.exoplayer2.ui.StyledPlayerView android:focusable="false"
+        android:id="@+id/exoPlayerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <ProgressBar android:id="@+id/playerBuffering" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="center" android:indeterminateTint="#FFFFFF" android:visibility="gone"/>
+    <!-- OVERLAY LECTEUR ULTRA-MODERNE INFUSE 8 / APPLE TV -->
+    <FrameLayout
+        android:id="@+id/playerOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- ============================================================ -->
+        <!-- BANDEAU SUPÉRIEUR CINÉMATIQUE (Dégradé doux + Métadonnées)   -->
+        <!-- ============================================================ -->
+        <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:layout_gravity="top"
+            android:background="@drawable/bg_player_top_scrim"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="24dp" android:paddingRight="24dp"
+            android:paddingTop="12dp">
+
+            <!-- Bouton Retour -->
+            <ImageView
+                android:id="@+id/btnPlayerBack" android:contentDescription="Quitter le lecteur"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_player_control_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="8dp"
+                android:src="@drawable/ic_player_back" />
+
+            <!-- Titres du média -->
+            <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="18dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvPlayerTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:shadowColor="#CC000000"
+                    android:shadowDx="0"
+                    android:shadowDy="2"
+                    android:shadowRadius="6"
+                    android:text="Titre du film ou de la série"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPlayerSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:shadowColor="#CC000000"
+                    android:shadowDx="0"
+                    android:shadowDy="2"
+                    android:shadowRadius="4"
+                    android:text="S1 • E1 - Titre de l'épisode"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Badges techniques à droite -->
+            <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvStreamModeBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="26dp"
+                    android:background="@drawable/bg_badge_request"
+                    android:gravity="center"
+                    android:paddingLeft="10dp" android:paddingRight="10dp"
+                    android:text="Direct Play · 1080p"
+                    android:textColor="#38BDF8"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============================================================ -->
+        <!-- BANDEAU INFÉRIEUR CINÉMATIQUE (Dégradé Obsidian Apple TV)    -->
+        <!-- ============================================================ -->
+        <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:layout_marginLeft="42dp" android:layout_marginRight="42dp" android:layout_marginBottom="24dp"
+            android:background="@drawable/bg_infuse_player_glass"
+            android:orientation="vertical"
+            android:paddingLeft="24dp" android:paddingRight="24dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="18dp">
+
+            <!-- LIGNE 1 : Barre de temps & Scrubber avec indicateurs précis -->
+            <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvElapsedTime"
+                    android:layout_width="54dp"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="start"
+                    android:text="00:00"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp" />
+
+                <com.plezy.jellyfin.ui.player.SegmentedChapterBar
+                    android:id="@+id/chapterProgressBar"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp" android:focusable="true" android:contentDescription="Position de lecture, gauche et droite pour avancer ou reculer"
+                    android:layout_marginLeft="12dp" android:layout_marginRight="12dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/tvRemainingTime"
+                    android:layout_width="54dp"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="end"
+                    android:text="-00:00"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tvEndsAt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_player_pill_action"
+                    android:paddingLeft="10dp" android:paddingRight="10dp"
+                    android:paddingTop="3dp" android:paddingBottom="3dp"
+                    android:text="Fin à --:--"
+                    android:textColor="#CBD5E1"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- LIGNE 2 : Contrôles de lecture centraux (Grand bouton Play 64dp) -->
+            <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <!-- Bouton Chapitre Précédent -->
+                <ImageView
+                    android:id="@+id/btnPrev" android:contentDescription="Chapitre précédent"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_player_control_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_player_prev" />
+
+                <!-- Vues invisibles conservées pour compatibilité code -->
+                <View
+                    android:id="@+id/btnRewindFast"
+                    android:layout_width="1dp"
+                    android:layout_height="1dp"
+                    android:visibility="gone" />
+
+                <!-- Recul 10s -->
+                <ImageView
+                    android:id="@+id/btnReplay10" android:contentDescription="Reculer de 10 secondes"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="18dp"
+                    android:background="@drawable/bg_player_control_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="10dp"
+                    android:src="@drawable/ic_player_replay10" />
+
+                <!-- Grand bouton Play/Pause central -->
+                <ImageView
+                    android:id="@+id/btnPlayPause" android:contentDescription="Lecture ou pause"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_marginStart="24dp"
+                    android:layout_marginEnd="24dp"
+                    android:background="@drawable/bg_player_play_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="16dp"
+                    android:src="@drawable/ic_player_pause" />
+
+                <!-- Avance 10s -->
+                <ImageView
+                    android:id="@+id/btnForward10" android:contentDescription="Avancer de 10 secondes"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="18dp"
+                    android:background="@drawable/bg_player_control_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="10dp"
+                    android:src="@drawable/ic_player_forward10" />
+
+                <View
+                    android:id="@+id/btnFastForward"
+                    android:layout_width="1dp"
+                    android:layout_height="1dp"
+                    android:visibility="gone" />
+
+                <!-- Bouton Chapitre Suivant -->
+                <ImageView
+                    android:id="@+id/btnNext" android:contentDescription="Chapitre ou épisode suivant"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_player_control_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_player_next" />
+            </LinearLayout>
+
+            <!-- LIGNE 3 : Pilules d'action rapide modernes (Audio, Qualité, Format, Chapitres) -->
+            <LinearLayout android:clipChildren="false" android:clipToPadding="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btnSubtitles"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:background="@drawable/bg_player_pill_action"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingLeft="14dp" android:paddingRight="14dp"
+                    android:text="Audio et sous-titres"
+                    android:textColor="@color/pill_text_color"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnQuality"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_player_pill_action"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingLeft="14dp" android:paddingRight="14dp"
+                    android:text="Qualité"
+                    android:textColor="@color/pill_text_color"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnAspect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_player_pill_action"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingLeft="14dp" android:paddingRight="14dp"
+                    android:text="Format : original"
+                    android:textColor="@color/pill_text_color"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnChapters"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_player_pill_action"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingLeft="14dp" android:paddingRight="14dp"
+                    android:text="Chapitres"
+                    android:textColor="@color/pill_text_color"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/btnAirPlay" android:contentDescription="Informations de lecture"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/bg_player_control_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_player_airplay" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

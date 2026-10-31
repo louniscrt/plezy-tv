@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#090D16">
+<ImageView android:id="@+id/ivHeroBackdrop" android:layout_width="match_parent" android:layout_height="match_parent" android:alpha="0.64" android:scaleType="centerCrop"/>
+<View android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_hero_scrim"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="72dp" android:paddingLeft="42dp" android:paddingRight="42dp" android:orientation="horizontal" android:gravity="center_vertical">
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="plezy" android:textSize="29sp" android:textColor="#FFFFFF" android:fontFamily="sans-serif-medium" android:letterSpacing="-0.06" android:layout_marginRight="30dp"/>
+<LinearLayout android:layout_width="wrap_content" android:layout_height="48dp" android:gravity="center_vertical" android:padding="4dp" android:orientation="horizontal" android:background="@drawable/bg_liquid_glass_panel">
+<TextView android:id="@+id/navHome" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingLeft="18dp" android:paddingRight="18dp" android:text="Accueil" android:textSize="14sp" android:textColor="@color/pill_text_color" android:fontFamily="sans-serif-medium" android:background="@drawable/bg_nav_tab" android:focusable="true" android:clickable="true" /><TextView android:id="@+id/navSearch" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingLeft="18dp" android:paddingRight="18dp" android:text="Rechercher" android:textSize="14sp" android:textColor="@color/pill_text_color" android:fontFamily="sans-serif-medium" android:background="@drawable/bg_nav_tab" android:focusable="true" android:clickable="true" /><TextView android:id="@+id/navLibrary" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingLeft="18dp" android:paddingRight="18dp" android:text="Bibliothèque" android:textSize="14sp" android:textColor="@color/pill_text_color" android:fontFamily="sans-serif-medium" android:background="@drawable/bg_nav_tab" android:focusable="true" android:clickable="true" /><TextView android:id="@+id/navDownloads" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingLeft="18dp" android:paddingRight="18dp" android:text="Ma liste" android:textSize="14sp" android:textColor="@color/pill_text_color" android:fontFamily="sans-serif-medium" android:background="@drawable/bg_nav_tab" android:focusable="true" android:clickable="true" />
+</LinearLayout>
+<View android:layout_width="0dp" android:layout_weight="1" android:layout_height="1dp"/>
+<FrameLayout android:id="@+id/btnUsers" android:layout_width="38dp" android:layout_height="38dp" android:layout_marginLeft="8dp" android:background="@drawable/bg_circle_button" android:focusable="true" android:clickable="true" android:contentDescription="Parcourir"><ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:duplicateParentState="true" app:tint="@color/pill_text_color" android:src="@drawable/ic_infuse_sort"/></FrameLayout><FrameLayout android:id="@+id/btnRefresh" android:layout_width="38dp" android:layout_height="38dp" android:layout_marginLeft="8dp" android:background="@drawable/bg_circle_button" android:focusable="true" android:clickable="true" android:contentDescription="Actualiser"><ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:duplicateParentState="true" app:tint="@color/pill_text_color" android:src="@drawable/ic_infuse_refresh"/></FrameLayout><FrameLayout android:id="@+id/navSettings" android:layout_width="38dp" android:layout_height="38dp" android:layout_marginLeft="8dp" android:background="@drawable/bg_circle_button" android:focusable="true" android:clickable="true" android:contentDescription="Réglages"><ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:duplicateParentState="true" app:tint="@color/pill_text_color" android:src="@drawable/ic_infuse_settings"/></FrameLayout>
+<TextView android:id="@+id/navOverseerr" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/><TextView android:id="@+id/tvUserAvatar" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+</LinearLayout>
+<ScrollView android:id="@+id/homeContainer" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="76dp" android:paddingLeft="42dp" android:paddingRight="42dp" android:paddingBottom="32dp" android:clipToPadding="false" android:clipChildren="false" android:scrollbars="none" android:fillViewport="true">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:clipChildren="false">
+<LinearLayout android:layout_width="match_parent" android:layout_height="136dp" android:orientation="vertical" android:gravity="center_vertical">
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="VOTRE CINÉMA, CHEZ VOUS" android:textSize="10sp" android:letterSpacing="0.16" android:textColor="#B9CADF"/>
+<TextView android:id="@+id/tvHeroTitle" android:layout_width="620dp" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Bienvenue sur Plezy" android:textSize="34sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFF" android:fontFamily="sans-serif-medium"/>
+<TextView android:id="@+id/tvHeroMeta" android:layout_width="600dp" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textSize="12sp" android:textColor="#D3DBE7"/>
+<TextView android:id="@+id/tvHeroOverview" android:layout_width="520dp" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Vos films et séries, réunis dans un seul espace." android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="3dp" android:textSize="13sp" android:textColor="#BFC9D8"/>
+</LinearLayout>
+<TextView android:id="@+id/tvHomeStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Chargement de votre bibliothèque…" android:textColor="#BBC8D8" android:textSize="13sp"/>
+<TextView android:id="@+id/tvContinueHeader" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:layout_marginBottom="8dp" android:text="À reprendre" android:textSize="21sp" android:textColor="#F5F6FA" android:fontFamily="sans-serif-medium"/><androidx.recyclerview.widget.RecyclerView android:id="@+id/rvContinueWatching" android:layout_width="match_parent" android:layout_height="222dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:clipChildren="false" android:clipToPadding="false"/>
+<TextView  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:layout_marginBottom="8dp" android:text="Explorer" android:textSize="21sp" android:textColor="#F5F6FA" android:fontFamily="sans-serif-medium"/><LinearLayout android:layout_width="match_parent" android:layout_height="112dp" android:orientation="horizontal" android:clipChildren="false"><LinearLayout android:id="@+id/tileFavOverseerr" android:layout_width="0dp" android:layout_weight="1" android:layout_height="96dp" android:layout_margin="6dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/bg_tile_orange" android:focusable="true" android:clickable="true"><ImageView android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_infuse_star_tile"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Découvrir" android:textColor="#FFFFFF" android:textSize="14sp" android:fontFamily="sans-serif-medium"/></LinearLayout>
+<LinearLayout android:id="@+id/tileFavMovies" android:layout_width="0dp" android:layout_weight="1" android:layout_height="96dp" android:layout_margin="6dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/bg_tile_movies" android:focusable="true" android:clickable="true"><ImageView android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_infuse_camera"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Films" android:textColor="#FFFFFF" android:textSize="14sp" android:fontFamily="sans-serif-medium"/></LinearLayout>
+<LinearLayout android:id="@+id/tileFavShows" android:layout_width="0dp" android:layout_weight="1" android:layout_height="96dp" android:layout_margin="6dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/bg_tile_tvshows" android:focusable="true" android:clickable="true"><ImageView android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_infuse_tv"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Séries" android:textColor="#FFFFFF" android:textSize="14sp" android:fontFamily="sans-serif-medium"/></LinearLayout>
+<LinearLayout android:id="@+id/tileFavAll" android:layout_width="0dp" android:layout_weight="1" android:layout_height="96dp" android:layout_margin="6dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/bg_tile_overseerr" android:focusable="true" android:clickable="true"><ImageView android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_infuse_add_box"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Bibliothèque" android:textColor="#FFFFFF" android:textSize="14sp" android:fontFamily="sans-serif-medium"/></LinearLayout></LinearLayout>
+<TextView  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:layout_marginBottom="8dp" android:text="Films récemment ajoutés" android:textSize="21sp" android:textColor="#F5F6FA" android:fontFamily="sans-serif-medium"/><androidx.recyclerview.widget.RecyclerView android:id="@+id/rvHomeMovies" android:layout_width="match_parent" android:layout_height="302dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:clipChildren="false" android:clipToPadding="false"/>
+<TextView  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:layout_marginBottom="8dp" android:text="Séries récemment ajoutées" android:textSize="21sp" android:textColor="#F5F6FA" android:fontFamily="sans-serif-medium"/><androidx.recyclerview.widget.RecyclerView android:id="@+id/rvRecentlyAdded" android:layout_width="match_parent" android:layout_height="302dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:clipChildren="false" android:clipToPadding="false"/>
+<TextView  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:layout_marginBottom="8dp" android:text="À découvrir sur Seerr" android:textSize="21sp" android:textColor="#F5F6FA" android:fontFamily="sans-serif-medium"/><androidx.recyclerview.widget.RecyclerView android:id="@+id/rvOverseerrTrending" android:layout_width="match_parent" android:layout_height="302dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:clipChildren="false" android:clipToPadding="false"/>
+</LinearLayout></ScrollView>
+    <LinearLayout
+        android:id="@+id/libraryContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="84dp"
+        android:orientation="vertical"
+        android:paddingLeft="42dp" android:paddingRight="42dp"
+        android:visibility="gone">
+
+        <!-- BARRE DE FILTRES 1 : JELLYFIN LOCAL -->
+        <LinearLayout
+            android:id="@+id/rowJellyfinFilters"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tabBrowse"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="18dp" android:paddingRight="18dp"
+                android:text="Bibliothèque"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tabRecommended"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="18dp" android:paddingRight="18dp"
+                android:text="Top Notés"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tabCollections"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="18dp" android:paddingRight="18dp"
+                android:text="Collections"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tabPlaylists"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="18dp" android:paddingRight="18dp"
+                android:text="✨ Seerr / TMDB"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/btnFilterType"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="14dp" android:paddingRight="14dp"
+                android:text="Tous les types"
+                android:textColor="@color/pill_text_color"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/btnFilterUnplayed"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="14dp" android:paddingRight="14dp"
+                android:text="Tous"
+                android:textColor="@color/pill_text_color"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/btnSort"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="14dp" android:paddingRight="14dp"
+                android:text="Tri: Titre"
+                android:textColor="@color/pill_text_color"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- BARRE DE FILTRES 2 : OVERSEERR / SEERR CATALOGUE COMPLET -->
+        <LinearLayout
+            android:id="@+id/rowOverseerrFilters"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/seerrTabTrending"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="16dp" android:paddingRight="16dp"
+                android:text="🔥 Tendances"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/seerrTabMovies"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="16dp" android:paddingRight="16dp"
+                android:text="🎬 Films"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/seerrTabTv"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="16dp" android:paddingRight="16dp"
+                android:text="📺 Séries"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/seerrTabUpcoming"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="16dp" android:paddingRight="16dp"
+                android:text="⏳ Prochainement"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/seerrTabRequests"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="16dp" android:paddingRight="16dp"
+                android:text="📥 Mes Requêtes"
+                android:textColor="@color/pill_text_color"
+                android:textSize="13sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/btnSeerrSwitchToJellyfin"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:paddingLeft="14dp" android:paddingRight="14dp"
+                android:text="← Bibliothèque"
+                android:textColor="@color/pill_text_color"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvLibraryGrid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+    </LinearLayout>
+
+    <!-- ==================================================================== -->
+    <!-- VUE 3 : RECHERCHE INFUSE + OVERSEERR                                 -->
+    <!-- ==================================================================== -->
+    <LinearLayout
+        android:id="@+id/searchContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="84dp"
+        android:orientation="vertical"
+        android:paddingLeft="42dp" android:paddingRight="42dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etSearchQuery"
+            android:layout_width="580dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_liquid_glass_panel"
+            android:hint="Search Movies, TV Shows &amp; Overseerr..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingLeft="18dp" android:paddingRight="18dp"
+            android:singleLine="true"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvSearchStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="10dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="Results from Jellyfin &amp; Overseerr"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvSearchResults"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+    </LinearLayout>
+
+    <!-- ==================================================================== -->
+    <!-- VUE 4 : DOWNLOADS                                                    -->
+    <!-- ==================================================================== -->
+    <LinearLayout
+        android:id="@+id/downloadsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="84dp"
+        android:orientation="vertical"
+        android:paddingLeft="42dp" android:paddingRight="42dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="Ma liste"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvDownloads"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+    </LinearLayout>
+
+
+</FrameLayout>

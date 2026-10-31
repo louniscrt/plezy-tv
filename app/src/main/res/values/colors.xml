@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palette Infuse 8 · Apple TV / visionOS Liquid Glass + Overseerr Accents -->
+    <color name="bg_primary">#07080C</color>
+    <color name="bg_surface">#12151E</color>
+
+    <!-- Surfaces Liquid Glass (Translucidité givrée + reflets spéculaires) -->
+    <color name="glass_surface">#4D222836</color>
+    <color name="glass_surface_elevated">#662A3142</color>
+    <color name="glass_border">#38FFFFFF</color>
+    <color name="glass_border_focused">#FFFFFFFF</color>
+    <color name="glass_pill_focused">#D9FFFFFF</color>
+
+    <!-- Barre flottante du lecteur Infuse Liquid Glass (Ambre/Verre chaud) -->
+    <color name="infuse_player_glass_top">#735A4632</color>
+    <color name="infuse_player_glass_bottom">#8C241C14</color>
+    <color name="infuse_player_border">#66FFE4B5</color>
+
+    <!-- Accents Infuse (Orange #FF9500) & Overseerr (Indigo/Violet #6366F1) -->
+    <color name="infuse_orange">#FF9500</color>
+    <color name="overseerr_indigo">#6366F1</color>
+    <color name="overseerr_purple">#8B5CF6</color>
+    <color name="tmdb_green">#21D07A</color>
+    <color name="trakt_pink">#ED1C24</color>
+
+    <color name="bg_pill">#40FFFFFF</color>
+    <color name="bg_pill_selected">#FFFFFF</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#C4C7D0</color>
+    <color name="text_muted">#7E8494</color>
+    <color name="text_on_pill_selected">#07080C</color>
+    <color name="focus_stroke">#FFFFFF</color>
+
+    <!-- Barres de progression Infuse Orange -->
+    <color name="progress_fill">#FF9500</color>
+    <color name="progress_track">#40FFFFFF</color>
+
+    <color name="badge_bg">#E6FFFFFF</color>
+    <color name="badge_text">#07080C</color>
+    <color name="scrim_dark">#CC07080C</color>
+    <color name="scrim_transparent">#0007080C</color>
+</resources>

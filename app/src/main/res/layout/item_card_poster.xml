@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cardRoot"
+    android:layout_width="150dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="16dp"
+    android:layout_marginBottom="16dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <FrameLayout android:duplicateParentState="true"
+        android:layout_width="match_parent"
+        android:layout_height="212dp"
+        android:background="@drawable/bg_card_focus"
+        android:padding="2dp">
+
+        <ImageView
+            android:id="@+id/ivPoster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_rounded_image_14"
+            android:scaleType="centerCrop" />
+
+        <!-- Triangle orange Infuse en haut à droite si non-vu -->
+        <ImageView
+            android:id="@+id/ivUnwatchedTriangle"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:src="@drawable/bg_unwatched_triangle"
+            android:visibility="gone" />
+
+        <!-- Badge Overseerr / Compteur -->
+        <TextView
+            android:id="@+id/tvBadgeCount"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_badge_count"
+            android:gravity="center"
+            android:minWidth="20dp"
+            android:paddingLeft="6dp" android:paddingRight="6dp"
+            android:text="16"
+            android:textColor="@color/badge_text"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center_horizontal"
+        android:maxLines="1"
+        android:text="Ocean's Eleven"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:maxLines="1"
+        android:text="2001"
+        android:textColor="@color/text_muted"
+        android:textSize="11sp" />
+
+</LinearLayout>

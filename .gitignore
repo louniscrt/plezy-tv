@@ -1,0 +1,20 @@
+# Build & Gradle
+*.iml
+.gradle
+/local.properties
+local.properties
+/.idea
+.DS_Store
+/build
+app/build
+/captures
+.externalNativeBuild
+.cxx
+/.build-cache/
+/deliverables/
+
+# Logs & Environment
+*.log
+
+# Personal device backups & dumps
+backup-firetv/
