@@ -112,6 +112,33 @@ app-firetv/
 
 ---
 
+## 🏠 Le Serveur DIY : Du PC Portable Recyclé au Home Lab Autonome
+
+En coulisse, **Plezy TV** n'est que la vitrine de salon d'une infrastructure personnelle complète. L'application est alimentée par un **serveur NAS maison conçu à partir d'un ancien PC portable recyclé** associé à du stockage sur disque dur (HDD Seagate 1 To, SSD).
+
+### 🛠️ De Proxmox VE à UmbrelOS
+* **L'expérience Proxmox** : Le serveur tournait initialement sous l'hyperviseur **Proxmox VE** (avec machines virtuelles et conteneurs LXC).
+* **La migration vers UmbrelOS** : Pour supprimer la surcharge liée à la virtualisation, libérer un maximum de ressources processeur et mémoire, et bénéficier d'un écosystème Docker prêt à l'emploi avec une interface unifiée, le système a été basculé sous **UmbrelOS**.
+* **Les services auto-hébergés actifs** :
+  * 🎬 **Streaming & Médiathèque** : Jellyfin, Plex
+  * ⚡ **Gestion & Automatisation des Téléchargements** : Overseerr / Seerr, Radarr, Sonarr, Prowlarr, Transmission
+  * 🔒 **Autonomie & Vie Privée** : Vaultwarden (coffre-fort de mots de passe souverain), WireGuard (VPN chiffré), Cloudflare Tunnel (accès sécurisé distant)
+
+<p align="center">
+  <img src="docs/images/umbrelos-dashboard.png" alt="Dashboard UmbrelOS" width="850" />
+</p>
+
+| Carte mère & Refroidissement PC Portable | Intégration HDD Seagate 1 To |
+| :---: | :---: |
+| <img src="docs/images/nas-laptop-internals.jpg" alt="Hardware Laptop" width="400" /> | <img src="docs/images/nas-hdd-storage.jpg" alt="Stockage HDD" width="400" /> |
+
+### 🚀 Améliorations en cours & Vision
+Le serveur continue d'évoluer :
+* Achat et ajout régulier de nouveaux composants matériels (extension de RAM, stockage étendu, amélioration thermique).
+* **Le but ultime** : **Devenir 100% autonome et souverain sur la quasi-totalité de ses services numériques du quotidien** (streaming vidéo, synchronisation de photos/documents, gestion de mots de passe, accès réseau sécurisé), sans dépendre des abonnements et plateformes cloud tierces.
+
+---
+
 ## 🚀 Installation & Déploiement
 
 ### Option A : Déploiement rapide via ADB (Sideload)
