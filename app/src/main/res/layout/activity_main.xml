@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Reproduction 1:1 de l'interface Netflix TV (media_1793484172329_ae29df35.png) :
-    - Barre latérale gauche 54dp avec filet rouge d'activation vertical de 3.5dp
-    - Grand Billboard cinématique : [P] FILM / S É R I E -> Titre géant -> [ ▶ Lecture ] [ Plus d'infos ] -> Synopsis
-    - Tag de classification flottant à droite (| 16+)
-    - Logo PLEZY rouge en bas à droite au-dessus des rangées
-    - Rangées de vignettes 16:9 et rangée Top 10 à grands chiffres
+    Reproduction 1:1 de l'interface Netflix TV 2026 (Photos & Vidéos utilisateur) :
+    - Barre de navigation supérieure : Profil, Recherche, Accueil, Séries, Films, Nouveautés Seerr, Mon Netflix, Logo Plezy
+    - Grand Billboard cinématique : [P] FILM / S É R I E -> Titre géant -> Métadonnées + Badges -> Synopsis -> 2 Boutons -> Capsules Catégories (TF1+, Nouveautés...)
+    - Rangées de vignettes 16:9, In-Row Expansion et rangée Top 10 à grands chiffres détourés
+    - Dégradés cinématographiques sans débordement
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -26,6 +25,13 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_nfx_scrim_left" />
 
+    <!-- Dégradé vertical haut Netflix : lisibilité de la barre supérieure -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_gravity="top"
+        android:background="@drawable/bg_nfx_scrim_top" />
+
     <!-- Dégradé vertical bas Netflix : obscurcit le tiers inférieur sous les rangées -->
     <View
         android:id="@+id/scrimBottom"
@@ -34,49 +40,175 @@
         android:layout_gravity="bottom"
         android:background="@drawable/bg_nfx_scrim_bottom" />
 
-    <!-- Badge classification à droite de l'écran (style "| 16+" exact de Netflix) -->
+    <!-- ==================================================================== -->
+    <!-- 1. BARRE DE NAVIGATION SUPÉRIEURE (Frame 73 / 76 / 81 vidéo 8)       -->
+    <!-- ==================================================================== -->
     <LinearLayout
-        android:id="@+id/layoutHeroMeta"
-        android:layout_width="wrap_content"
-        android:layout_height="26dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="232dp"
-        android:background="#73000000"
+        android:id="@+id/topBarContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:elevation="12dp"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingStart="40dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="40dp"
+        android:paddingBottom="10dp">
 
-        <View
-            android:layout_width="3dp"
-            android:layout_height="match_parent"
-            android:background="#E5FFFFFF" />
-
+        <!-- Avatar Profil ("L") -->
         <TextView
-            android:id="@+id/tvHeroMeta"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-bold"
-            android:paddingStart="10dp"
-            android:paddingEnd="16dp"
-            android:text="16+"
+            android:id="@+id/navProfile"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_nfx_avatar"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-black"
+            android:gravity="center"
+            android:text="L"
             android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- 1. Recherche (🔍) -->
+        <FrameLayout
+            android:id="@+id/navSearch"
+            android:layout_width="36dp"
+            android:layout_height="30dp"
+            android:background="@drawable/bg_nfx_nav_tab"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_infuse_search"
+                app:tint="@color/nfx_sidebar_icon_tint" />
+        </FrameLayout>
+
+        <!-- 2. Accueil (Pilule active par défaut) -->
+        <TextView
+            android:id="@+id/navHome"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_nfx_nav_tab"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-bold"
+            android:gravity="center"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="Accueil"
+            android:textColor="@color/nfx_nav_text"
             android:textSize="12sp"
             android:textStyle="bold" />
-    </LinearLayout>
 
-    <!-- Logo PLEZY rouge vif en bas à droite (exactement comme le logo NETFLIX dans le screenshot) -->
-    <TextView
-        android:id="@+id/tvBrandWatermark"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="348dp"
-        android:layout_marginEnd="40dp"
-        android:fontFamily="sans-serif-black"
-        android:letterSpacing="0.04"
-        android:text="PLEZY"
-        android:textColor="#E50914"
-        android:textSize="22sp"
-        android:textStyle="bold" />
+        <!-- 3. Séries -->
+        <TextView
+            android:id="@+id/navSeries"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_nfx_nav_tab"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Séries"
+            android:textColor="@color/nfx_nav_text"
+            android:textSize="12sp" />
+
+        <!-- 4. Films -->
+        <TextView
+            android:id="@+id/navMovies"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_nfx_nav_tab"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Films"
+            android:textColor="@color/nfx_nav_text"
+            android:textSize="12sp" />
+
+        <!-- 5. Nouveautés Seerr -->
+        <TextView
+            android:id="@+id/navOverseerr"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_nfx_nav_tab"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Nouveautés Seerr"
+            android:textColor="@color/nfx_nav_text"
+            android:textSize="12sp" />
+
+        <!-- 6. Mon Netflix -->
+        <TextView
+            android:id="@+id/navDownloads"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_nfx_nav_tab"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Mon Netflix"
+            android:textColor="@color/nfx_nav_text"
+            android:textSize="12sp" />
+
+        <!-- Espaceur flexible -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Logo PLEZY / N rouge en haut à droite -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-black"
+                android:text="N"
+                android:textColor="#E50914"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvBrandWatermark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="0.08"
+                android:text="PLEZY"
+                android:textColor="#E50914"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- ==================================================================== -->
     <!-- CONTENEUR PRINCIPAL DE NAVIGATION (BILLBOARD + RANGÉES)              -->
@@ -85,16 +217,15 @@
         android:id="@+id/browseContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginStart="54dp"
         android:clipChildren="false">
 
-        <!-- BILLBOARD NETFLIX : Titre, 2 boutons, synopsis dessous -->
+        <!-- BILLBOARD NETFLIX : Titre, Métadonnées, Badges, 2 boutons, Synopsis -->
         <LinearLayout
             android:id="@+id/infoPanel"
-            android:layout_width="480dp"
+            android:layout_width="540dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="34dp"
-            android:layout_marginTop="72dp"
+            android:layout_marginStart="40dp"
+            android:layout_marginTop="64dp"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:orientation="vertical">
@@ -150,73 +281,226 @@
                 android:shadowColor="#CC000000"
                 android:shadowDy="2"
                 android:shadowRadius="6"
-                android:text="THE OLD GUARD"
+                android:text="COLISIÓN"
                 android:textAllCaps="true"
                 android:textColor="#FFFFFF"
-                android:textSize="38sp"
+                android:textSize="36sp"
                 android:textStyle="bold" />
 
-            <!-- Ligne 3 : LES 2 BOUTONS NETFLIX [ ▶ Lecture ] [ Plus d'infos ] -->
+            <!-- Ligne 3 : Métadonnées + Badges rouges (Ajout récent / N° 1) -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvHeroMeta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="Film • Thriller • 2026 • 1 h 46 min • 16+"
+                    android:textColor="#D1D5DB"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvHeroBadgeRecent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="18dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_nfx_badge_red"
+                    android:fontFamily="sans-serif-bold"
+                    android:gravity="center"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:text="Ajout récent"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvHeroBadgeRank"
+                    android:layout_width="wrap_content"
+                    android:layout_height="18dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_nfx_badge_red"
+                    android:fontFamily="sans-serif-bold"
+                    android:gravity="center"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:text="N° 1 des films"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Ligne 4 : Synopsis placé DIRECTEMENT sous les métadonnées -->
+            <TextView
+                android:id="@+id/tvHeroOverview"
+                android:layout_width="480dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:ellipsize="end"
+                android:lineSpacingExtra="2dp"
+                android:maxLines="2"
+                android:shadowColor="#B3000000"
+                android:shadowDy="1"
+                android:shadowRadius="4"
+                android:text="Un casse parfaitement orchestré dissimule les véritables intentions d'une bande de malfrats dans ce thriller haletant."
+                android:textColor="#E2E8F0"
+                android:textSize="12sp" />
+
+            <!-- Ligne 5 : Les 2 boutons Netflix [ ▶ Lecture ] [ Plus d'infos ] -->
             <LinearLayout
                 android:id="@+id/heroButtons"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="12dp"
                 android:orientation="horizontal">
 
                 <TextView
                     android:id="@+id/btnHeroPlay"
                     android:layout_width="wrap_content"
-                    android:layout_height="38dp"
+                    android:layout_height="36dp"
                     android:background="@drawable/bg_netflix_play_btn"
                     android:clickable="true"
                     android:focusable="true"
-                    android:fontFamily="sans-serif-medium"
+                    android:fontFamily="sans-serif-bold"
                     android:gravity="center"
-                    android:minWidth="126dp"
-                    android:paddingLeft="20dp"
-                    android:paddingRight="22dp"
+                    android:minWidth="120dp"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="20dp"
                     android:text="▶  Lecture"
                     android:textColor="@color/netflix_play_text_color"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/btnHeroMoreInfo"
                     android:layout_width="wrap_content"
-                    android:layout_height="38dp"
-                    android:layout_marginStart="12dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="10dp"
                     android:background="@drawable/bg_netflix_glass_btn"
                     android:clickable="true"
                     android:focusable="true"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center"
-                    android:minWidth="126dp"
-                    android:paddingLeft="20dp"
-                    android:paddingRight="22dp"
+                    android:minWidth="120dp"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="20dp"
                     android:text="Plus d'infos"
                     android:textColor="@color/netflix_more_info_text_color"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- Ligne 4 : Synopsis placé DIRECTEMENT sous les boutons (exactement comme Netflix) -->
-            <TextView
-                android:id="@+id/tvHeroOverview"
-                android:layout_width="460dp"
+            <!-- Ligne 6 : Capsules de catégories horizontales (TF1+, Nouveautés, etc.) -->
+            <HorizontalScrollView
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:ellipsize="end"
-                android:lineSpacingExtra="3dp"
-                android:maxLines="3"
-                android:shadowColor="#B3000000"
-                android:shadowDy="1"
-                android:shadowRadius="4"
-                android:text="Pendant des siècles, ces quatre guerriers protégeaient secrètement l'humanité. Maintenant, leurs dons en font des cibles."
-                android:textColor="#E2E8F0"
-                android:textSize="13sp" />
+                android:layout_marginTop="12dp"
+                android:clipToPadding="false"
+                android:scrollbars="none">
 
-            <LinearLayout android:id="@+id/rowCallout" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_nfx_category_pill"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="sans-serif-bold"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="TF1+"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_nfx_category_pill"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="Nouveautés et incontournables"
+                        android:textColor="#E2E8F0"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_nfx_category_pill"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="THRILLERS"
+                        android:textColor="#E2E8F0"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_nfx_category_pill"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="DRAMES"
+                        android:textColor="#E2E8F0"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_nfx_category_pill"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="POLICIERS"
+                        android:textColor="#E2E8F0"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_nfx_category_pill"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="HUMOUR"
+                        android:textColor="#E2E8F0"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <LinearLayout android:id="@+id/rowCallout" android:orientation="vertical" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
             <TextView android:id="@+id/tvHeroCallout" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
             <TextView android:id="@+id/tvTop10Badge" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
             <TextView android:id="@+id/tvMetaYear" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
@@ -228,11 +512,11 @@
             android:id="@+id/rowsScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginTop="376dp"
+            android:layout_marginTop="318dp"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:overScrollMode="never"
-            android:paddingBottom="360dp"
+            android:paddingBottom="280dp"
             android:scrollbars="none">
 
             <LinearLayout
@@ -248,8 +532,8 @@
             android:id="@+id/tvHomeStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="34dp"
-            android:layout_marginTop="380dp"
+            android:layout_marginStart="40dp"
+            android:layout_marginTop="320dp"
             android:textColor="#94A3B8"
             android:textSize="13sp"
             android:visibility="gone" />
@@ -262,12 +546,12 @@
         android:id="@+id/searchContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginStart="54dp"
+        android:layout_marginTop="58dp"
         android:background="#05070B"
         android:orientation="vertical"
-        android:paddingLeft="34dp"
-        android:paddingTop="36dp"
-        android:paddingRight="36dp"
+        android:paddingLeft="40dp"
+        android:paddingTop="24dp"
+        android:paddingRight="40dp"
         android:visibility="gone">
 
         <EditText
@@ -291,13 +575,28 @@
             android:id="@+id/tvSearchStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="16dp"
             android:layout_marginBottom="10dp"
             android:fontFamily="sans-serif-medium"
             android:text="Recherches populaires"
             android:textColor="#E5E5E5"
-            android:textSize="15sp"
+            android:textSize="14sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnConnectSeerr"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_nfx_btn_primary"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:paddingLeft="18dp"
+            android:paddingRight="18dp"
+            android:text="Connecter Seerr pour rechercher et demander les titres absents"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvSearchResults"
@@ -307,228 +606,6 @@
             android:clipToPadding="false"
             android:paddingTop="4dp"
             android:paddingBottom="24dp" />
-    </LinearLayout>
-
-    <!-- ==================================================================== -->
-    <!-- BARRE LATÉRALE GAUCHE NETFLIX TV (Exactement comme le screenshot)    -->
-    <!-- ==================================================================== -->
-    <LinearLayout
-        android:id="@+id/sidebarContainer"
-        android:layout_width="54dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="start"
-        android:background="@drawable/bg_netflix_sidebar"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingTop="120dp"
-        android:paddingBottom="20dp">
-
-        <!-- 1. Recherche (🔍) -->
-        <FrameLayout
-            android:id="@+id/navSearch"
-            android:layout_width="48dp"
-            android:layout_height="42dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Rechercher"
-            android:focusable="true">
-
-            <View
-                android:id="@+id/barNavSearch"
-                android:layout_width="3.5dp"
-                android:layout_height="24dp"
-                android:layout_gravity="start|center_vertical"
-                android:background="#E50914"
-                android:visibility="gone" />
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_infuse_search"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
-
-        <!-- 2. Accueil (🏠) avec filet rouge vertical -->
-        <FrameLayout
-            android:id="@+id/navHome"
-            android:layout_width="48dp"
-            android:layout_height="42dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Accueil"
-            android:focusable="true">
-
-            <View
-                android:id="@+id/barNavHome"
-                android:layout_width="3.5dp"
-                android:layout_height="24dp"
-                android:layout_gravity="start|center_vertical"
-                android:background="#E50914"
-                android:visibility="visible" />
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_nav_home"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
-
-        <!-- 3. Séries (📺) -->
-        <FrameLayout
-            android:id="@+id/navSeries"
-            android:layout_width="48dp"
-            android:layout_height="42dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Séries"
-            android:focusable="true">
-
-            <View
-                android:id="@+id/barNavSeries"
-                android:layout_width="3.5dp"
-                android:layout_height="24dp"
-                android:layout_gravity="start|center_vertical"
-                android:background="#E50914"
-                android:visibility="gone" />
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_infuse_tv"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
-
-        <!-- 4. Films (🎬 Clapperboard) -->
-        <FrameLayout
-            android:id="@+id/navMovies"
-            android:layout_width="48dp"
-            android:layout_height="42dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Films"
-            android:focusable="true">
-
-            <View
-                android:id="@+id/barNavMovies"
-                android:layout_width="3.5dp"
-                android:layout_height="24dp"
-                android:layout_gravity="start|center_vertical"
-                android:background="#E50914"
-                android:visibility="gone" />
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_nav_movies"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
-
-        <!-- 5. Ma liste (➕) -->
-        <FrameLayout
-            android:id="@+id/navDownloads"
-            android:layout_width="48dp"
-            android:layout_height="42dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Ma liste"
-            android:focusable="true">
-
-            <View
-                android:id="@+id/barNavDownloads"
-                android:layout_width="3.5dp"
-                android:layout_height="24dp"
-                android:layout_gravity="start|center_vertical"
-                android:background="#E50914"
-                android:visibility="gone" />
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_nav_plus"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
-
-        <!-- 6. Nouveautés / Découverte Seerr (🗂️) -->
-        <FrameLayout
-            android:id="@+id/navOverseerr"
-            android:layout_width="48dp"
-            android:layout_height="42dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Nouveautés"
-            android:focusable="true">
-
-            <View
-                android:id="@+id/barNavOverseerr"
-                android:layout_width="3.5dp"
-                android:layout_height="24dp"
-                android:layout_gravity="start|center_vertical"
-                android:background="#E50914"
-                android:visibility="gone" />
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_nav_categories"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
-
-        <View
-            android:layout_width="1dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <!-- Profil Avatar (carré bleu "L") -->
-        <TextView
-            android:id="@+id/navProfile"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:background="@drawable/bg_nfx_avatar"
-            android:clickable="true"
-            android:focusable="true"
-            android:fontFamily="sans-serif-black"
-            android:gravity="center"
-            android:text="L"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <!-- Réglages (⚙️) -->
-        <FrameLayout
-            android:id="@+id/navSettings"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_sidebar_btn"
-            android:clickable="true"
-            android:contentDescription="Réglages"
-            android:focusable="true">
-
-            <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:layout_gravity="center"
-                android:duplicateParentState="true"
-                android:src="@drawable/ic_infuse_settings"
-                app:tint="@color/nfx_sidebar_icon_tint" />
-        </FrameLayout>
     </LinearLayout>
 
 </FrameLayout>

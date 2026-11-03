@@ -12,8 +12,8 @@ android {
         // Cible explicitement Fire OS / Android 5.1 (API Level 22)
         minSdk = 22
         targetSdk = 34
-        versionCode = 5
-        versionName = "2.1.0-PlezyGlass"
+        versionCode = 6
+        versionName = "2.2.0-PlezyTV"
 
         // MultiDex requis sur API 22 si le nombre de méthodes dépasse 64K
         multiDexEnabled = true

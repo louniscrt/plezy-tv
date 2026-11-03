@@ -162,7 +162,9 @@ class MediaDetailActivity : AppCompatActivity() {
 
         btnPlayEpisode.setOnClickListener {
             val target = selectedEpisode ?: currentItem
-            if (target.isSeerrMedia && target.overseerrStatus == OverseerrStatus.AVAILABLE_ON_JELLYFIN) {
+            if (target.isSeerrMedia && (target.overseerrStatus == OverseerrStatus.REQUESTED || seerrClient.isAlreadyRequested(target))) {
+                Toast.makeText(this, "Déjà demandé sur Seerr", Toast.LENGTH_SHORT).show()
+            } else if (target.isSeerrMedia && target.overseerrStatus == OverseerrStatus.AVAILABLE_ON_JELLYFIN) {
                 Toast.makeText(this, "Média annoncé disponible, mais introuvable dans Jellyfin. Actualisez la bibliothèque.", Toast.LENGTH_LONG).show()
             } else if (target.type == MediaType.SERIES && !target.isSeerrMedia) {
                 Toast.makeText(this, "Aucun épisode disponible pour cette série", Toast.LENGTH_SHORT).show()
@@ -183,7 +185,7 @@ class MediaDetailActivity : AppCompatActivity() {
                     Toast.makeText(this, "Bande-annonce: ${target.trailerUrl}", Toast.LENGTH_LONG).show()
                 }
             } else if (!target.isReadyToPlay) {
-                showSeerrAuthDialog(target)
+                triggerOverseerrRequest(target)
             } else {
                 val options = arrayOf(
                     "▶ Lecture depuis le début (00:00)",
@@ -285,7 +287,9 @@ class MediaDetailActivity : AppCompatActivity() {
             val res = seerrClient.requestMedia(item)
             btnPlayEpisode.isEnabled = true
             res.onSuccess { msg ->
-                btnPlayEpisode.text = "⏳ Demandé (En cours)"
+                currentItem = currentItem.copy(overseerrStatus = OverseerrStatus.REQUESTED)
+                btnPlayEpisode.text = "✓ Déjà demandé"
+                btnPlayEpisode.isEnabled = false
                 if (!item.trailerUrl.isNullOrBlank()) {
                     btnOverseerrRequest.text = "▶ Bande-annonce"
                 }

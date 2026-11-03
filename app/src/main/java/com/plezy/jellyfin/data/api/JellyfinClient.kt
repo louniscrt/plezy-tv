@@ -41,7 +41,7 @@ class JellyfinClient(context: Context) {
         .build()
 
     var serverUrl: String
-        get() = prefs.getString("server_url", "")?.trimEnd('/') ?: ""
+        get() = prefs.getString("server_url", null)?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: ""
         set(value) = prefs.edit().putString("server_url", value.trim().trimEnd('/')).apply()
 
     var accessToken: String

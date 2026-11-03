@@ -121,8 +121,15 @@ class NetflixRowAdapter(
             }
 
             itemView.setOnFocusChangeListener { v, hasFocus ->
-                val s = if (hasFocus) 1.06f else 1f
-                v.animate().scaleX(s).scaleY(s).setDuration(150).start()
+                val s = if (hasFocus) 1.06f else 1.0f
+                val interp = androidx.core.view.animation.PathInterpolatorCompat.create(0.2f, 0.9f, 0.3f, 1.0f)
+                v.animate()
+                    .scaleX(s)
+                    .scaleY(s)
+                    .translationZ(if (hasFocus) 12f else 0f)
+                    .setInterpolator(interp)
+                    .setDuration(280)
+                    .start()
                 if (hasFocus) onItemFocused(item, bindingAdapterPosition.coerceAtLeast(0))
             }
             itemView.setOnClickListener { onItemClicked(item) }

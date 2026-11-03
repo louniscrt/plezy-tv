@@ -68,7 +68,7 @@ class SeerrClient(context: Context) {
     }
 
     var seerrUrl: String
-        get() = prefs.getString("seerr_url", "")?.trimEnd('/') ?: ""
+        get() = prefs.getString("seerr_url", null)?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: ""
         set(value) = prefs.edit().putString("seerr_url", value.trim().trimEnd('/')).apply()
 
     var apiKey: String
@@ -89,47 +89,30 @@ class SeerrClient(context: Context) {
 
     private val requestedIds = mutableSetOf<Int>()
 
-    fun isAuthenticated(): Boolean = apiKey.isNotBlank() || savedCookieHeader.contains("connect.sid") || radarrApiKey.isNotBlank()
+    fun isAuthenticated(): Boolean = apiKey.isNotBlank() || savedCookieHeader.contains("connect.sid")
 
     suspend fun authenticateSeerr(emailOrKey: String, pass: String): Result<String> = withContext(Dispatchers.IO) {
-        val trimmed = emailOrKey.trim()
-        if (pass.isBlank() || trimmed.contains("=") || trimmed.length >= 32) {
-            apiKey = trimmed
-            val testReq = Request.Builder()
-                .url("$seerrUrl/api/v1/status")
-                .header("X-Api-Key", apiKey)
-                .get()
-                .build()
+        val value = emailOrKey.trim()
+        if (value.isBlank()) return@withContext Result.failure(Exception("Indiquez votre e-mail ou votre clé API Seerr."))
+        if (pass.isBlank()) {
             try {
-                httpClient.newCall(testReq).execute().use { resp ->
-                    if (resp.isSuccessful) {
-                        return@withContext Result.success("Connecté à Seerr avec la clé API !")
-                    }
+                val request = Request.Builder().url("$seerrUrl/api/v1/auth/me").header("X-Api-Key", value).get().build()
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext Result.failure(Exception("Clé API refusée (HTTP ${response.code})."))
                 }
-            } catch (_: Exception) {}
-            return@withContext Result.success("Clé API Seerr enregistrée !")
+                apiKey = value
+                return@withContext Result.success("Seerr connecté")
+            } catch (e: Exception) { return@withContext Result.failure(e) }
         }
-
-        val json = JsonObject().apply {
-            addProperty("email", trimmed)
-            addProperty("password", pass)
-        }
-        val body = json.toString().toRequestBody("application/json".toMediaType())
-        val req = Request.Builder()
-            .url("$seerrUrl/api/v1/auth/local")
-            .post(body)
-            .build()
         try {
-            httpClient.newCall(req).execute().use { resp ->
-                if (resp.isSuccessful) {
-                    Result.success("Connecté à Seerr avec succès !")
-                } else {
-                    Result.failure(Exception("Identifiants Seerr invalides (${resp.code})"))
-                }
+            val body = JsonObject().apply { addProperty("email", value); addProperty("password", pass) }
+                .toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder().url("$seerrUrl/api/v1/auth/local").post(body).build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(Exception("Identifiants Seerr refusés (HTTP ${response.code})."))
+                return@withContext Result.success("Seerr connecté")
             }
-        } catch (e: Exception) {
-            Result.failure(Exception("Erreur de connexion Seerr: ${e.message}"))
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     private fun applyAuthHeaders(builder: Request.Builder): Request.Builder {
@@ -221,7 +204,7 @@ class SeerrClient(context: Context) {
                 }
 
                 val seasonsArr = obj.getAsJsonArray("seasons")
-                val totalSeasons = seasonsArr?.size() ?: if (isTv) 1 else null
+                val totalSeasons = seasonsArr?.count { it.asJsonObject.get("seasonNumber")?.asInt?.let { n -> n > 0 } == true } ?: if (isTv) 1 else null
 
                 val mediaInfo = obj.getAsJsonObject("mediaInfo")
                 val statusInt = mediaInfo?.get("status")?.asInt ?: 1
@@ -299,17 +282,7 @@ class SeerrClient(context: Context) {
             val payload = JsonObject().apply {
                 addProperty("mediaType", mediaTypeStr)
                 addProperty("mediaId", tmdbId)
-                addProperty("userId", 1)
-                addProperty("serverId", 0)
-                if (isTv) {
-                    addProperty("profileId", 4)
-                    addProperty("rootFolder", "/downloads/HDD_500GB/shows")
-                    val seasonsArr = JsonArray().apply { add(1) }
-                    add("seasons", seasonsArr)
-                } else {
-                    addProperty("profileId", 7)
-                    addProperty("rootFolder", "/downloads/HDD_500GB/movies")
-                }
+                if (isTv) addProperty("seasons", "all")
             }
 
             val reqBuilder = applyAuthHeaders(
@@ -321,11 +294,14 @@ class SeerrClient(context: Context) {
 
             httpClient.newCall(reqBuilder.build()).execute().use { response ->
                 val respBody = response.body?.string().orEmpty()
-                if (response.isSuccessful) {
+                if (response.code == 201) {
                     requestedIds.add(tmdbId)
                     val targetService = if (isTv) "Sonarr -> Transmission" else "Radarr -> Transmission"
                     return@withContext Result.success("Envoyé à Seerr & $targetService : ${item.title}")
-                } else if (response.code == 401 || response.code == 403) {
+                } else if (response.code == 409) {
+                    requestedIds.add(tmdbId)
+                    return@withContext Result.success("Déjà demandé sur Seerr")
+                } else if (response.code == 401) {
                     return@withContext Result.failure(Exception("AUTH_REQUIRED"))
                 } else {
                     val msg = try {

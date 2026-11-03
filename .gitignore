@@ -18,3 +18,21 @@ app/build
 
 # Personal device backups & dumps
 backup-firetv/
+
+# Temporary diagnostic scripts & scratch files
+check_*.sh
+check_*.js
+test_*.js
+*.py
+server.js
+src_App.tsx
+ressources/
+
+# Experimental Vega OS & webapp
+PlezyTV-VegaOS.vpkg
+PlezyTV-VegaOS/
+sideload-vega.*
+smart-tv/
+plezytv_armv7/
+webapp/
+

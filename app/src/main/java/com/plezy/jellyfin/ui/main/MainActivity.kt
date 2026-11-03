@@ -111,7 +111,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var searchAdapter: NetflixRowAdapter
 
     private lateinit var navTabs: Map<Page, View>
-    private lateinit var navBars: Map<Page, View>
 
     private val rows = mutableListOf<RowState>()
     private var currentPage = Page.HOME
@@ -137,7 +136,7 @@ class MainActivity : AppCompatActivity() {
 
         browseContainer = findViewById(R.id.browseContainer)
         searchContainer = findViewById(R.id.searchContainer)
-        sidebarContainer = findViewById(R.id.sidebarContainer)
+        sidebarContainer = findViewById(R.id.topBarContainer)
         rowsScroll = findViewById(R.id.rowsScroll)
         rowsContainer = findViewById(R.id.rowsContainer)
         heroButtons = findViewById(R.id.heroButtons)
@@ -161,18 +160,10 @@ class MainActivity : AppCompatActivity() {
             Page.SEERR to findViewById(R.id.navOverseerr)
         )
 
-        navBars = mapOf(
-            Page.SEARCH to findViewById(R.id.barNavSearch),
-            Page.HOME to findViewById(R.id.barNavHome),
-            Page.SERIES to findViewById(R.id.barNavSeries),
-            Page.MOVIES to findViewById(R.id.barNavMovies),
-            Page.MYLIST to findViewById(R.id.barNavDownloads),
-            Page.SEERR to findViewById(R.id.barNavOverseerr)
-        )
-
-        setupSidebar()
+        setupTopBar()
         setupHeroButtons()
         setupSearch()
+        tvStatus.setOnClickListener { if (!seerrClient.isAuthenticated()) showSeerrConfigDialog() }
         openPage(Page.HOME)
         btnHeroPlay.requestFocus()
     }
@@ -184,31 +175,54 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------------
-    // Barre latérale gauche Netflix
+    // Barre supérieure Netflix TV 2026
     // ------------------------------------------------------------------
 
-    private fun setupSidebar() {
+    private fun setupTopBar() {
         val profile = findViewById<TextView>(R.id.navProfile)
+        val interp = androidx.core.view.animation.PathInterpolatorCompat.create(0.2f, 0.9f, 0.3f, 1.0f)
         profile.text = jellyfinClient.currentUserName.firstOrNull()?.uppercase() ?: "L"
         profile.setOnClickListener { showSettingsMenu() }
+        profile.setOnFocusChangeListener { v, hasFocus ->
+            val s = if (hasFocus) 1.1f else 1.0f
+            v.animate().scaleX(s).scaleY(s).setInterpolator(interp).setDuration(260).start()
+        }
 
-        findViewById<View>(R.id.navSettings).setOnClickListener { showSettingsMenu() }
+        findViewById<View?>(R.id.tvBrandWatermark)?.setOnClickListener { showSettingsMenu() }
 
         navTabs.forEach { (page, view) ->
             view.setOnClickListener {
                 if (currentPage != page) openPage(page)
+            }
+            view.setOnFocusChangeListener { v, hasFocus ->
+                val s = if (hasFocus) 1.08f else 1.0f
+                v.animate().scaleX(s).scaleY(s).translationZ(if (hasFocus) 8f else 0f).setInterpolator(interp).setDuration(260).start()
+                if (hasFocus && currentPage != page) {
+                    openPage(page)
+                }
             }
         }
     }
 
     private fun openPage(page: Page) {
         currentPage = page
-        navTabs.forEach { (p, v) -> v.isSelected = (p == page) }
-        navBars.forEach { (p, bar) -> bar.visibility = if (p == page) View.VISIBLE else View.GONE }
+        navTabs.forEach { (p, v) ->
+            v.isSelected = (p == page)
+            (v as? TextView)?.let { tv ->
+                if (p == page) {
+                    tv.setBackgroundResource(R.drawable.bg_nfx_nav_pill_active)
+                    tv.setTextColor(0xFF000000.toInt())
+                } else {
+                    tv.setBackgroundResource(R.drawable.bg_nfx_nav_tab)
+                    tv.setTextColor(0xFFD1D5DB.toInt())
+                }
+            }
+        }
 
         if (page == Page.SEARCH) {
             browseContainer.visibility = View.GONE
             searchContainer.visibility = View.VISIBLE
+            findViewById<View>(R.id.btnConnectSeerr).visibility = if (seerrClient.isAuthenticated()) View.GONE else View.VISIBLE
             etSearch.requestFocus()
             if (searchAdapter.itemCount == 0) runSearch("")
             return
@@ -254,7 +268,9 @@ class MainActivity : AppCompatActivity() {
 
             if (rows.isEmpty()) {
                 tvStatus.visibility = View.VISIBLE
-                tvStatus.text = "Rien à afficher pour le moment."
+                tvStatus.text = if (page == Page.SEERR && !seerrClient.isAuthenticated()) "Connectez Seerr depuis le profil pour découvrir et demander des titres." else "Rien à afficher pour le moment."
+                tvStatus.isFocusable = page == Page.SEERR && !seerrClient.isAuthenticated()
+                tvStatus.isClickable = tvStatus.isFocusable
             } else {
                 tvStatus.visibility = View.GONE
             }
@@ -476,6 +492,15 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------------
 
     private fun setupHeroButtons() {
+        val interp = androidx.core.view.animation.PathInterpolatorCompat.create(0.2f, 0.9f, 0.3f, 1.0f)
+        btnHeroPlay.setOnFocusChangeListener { v, hasFocus ->
+            val s = if (hasFocus) 1.06f else 1.0f
+            v.animate().scaleX(s).scaleY(s).translationZ(if (hasFocus) 8f else 0f).setInterpolator(interp).setDuration(280).start()
+        }
+        btnHeroMoreInfo.setOnFocusChangeListener { v, hasFocus ->
+            val s = if (hasFocus) 1.06f else 1.0f
+            v.animate().scaleX(s).scaleY(s).translationZ(if (hasFocus) 8f else 0f).setInterpolator(interp).setDuration(280).start()
+        }
         btnHeroPlay.setOnClickListener {
             val hero = featuredItem ?: return@setOnClickListener
             when {
@@ -605,6 +630,7 @@ class MainActivity : AppCompatActivity() {
         rv.itemAnimator = null
         rv.adapter = searchAdapter
 
+        findViewById<View>(R.id.btnConnectSeerr).setOnClickListener { showSeerrConfigDialog() }
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -620,18 +646,23 @@ class MainActivity : AppCompatActivity() {
         searchJob = lifecycleScope.launch {
             delay(300L)
             if (query.isBlank()) {
+                if (!seerrClient.isAuthenticated()) {
+                    searchAdapter.submitList(emptyList())
+                    status.text = "Connectez Seerr pour découvrir les films et séries absents de Jellyfin."
+                    return@launch
+                }
                 val popular = safe { seerrClient.getCategoryItems(SeerrCategory.TRENDING, 1) }
                 searchAdapter.submitList(popular)
                 status.text = "Recherches populaires"
                 return@launch
             }
             val jf = jellyfinClient.searchItems(query)
-            val seerr = safe { seerrClient.searchOverseerr(query) }
+            val seerr = (if (seerrClient.isAuthenticated()) safe { seerrClient.searchOverseerr(query) } else emptyList())
                 .filter { s -> jf.none { it.title.equals(s.title, ignoreCase = true) } }
             val matches = (jf + seerr).distinctBy { it.id }
             if (etSearch.text.toString() == query) {
                 searchAdapter.submitList(matches)
-                status.text = if (matches.isEmpty()) "Aucun résultat pour « $query »" else "Films et séries"
+                status.text = if (!seerrClient.isAuthenticated()) "Résultats Jellyfin · Connectez Seerr pour chercher ailleurs" else if (matches.isEmpty()) "Aucun résultat pour « $query »" else "Films et séries"
             }
         }
     }
@@ -695,7 +726,7 @@ class MainActivity : AppCompatActivity() {
                     seerrClient.authenticateSeerr(userOrKey, pass)
                         .onSuccess { msg ->
                             Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
-                            openPage(currentPage)
+                            if (currentPage == Page.SEARCH) runSearch(etSearch.text.toString()) else openPage(currentPage)
                         }
                         .onFailure { err ->
                             Toast.makeText(this@MainActivity, err.message ?: "Échec de connexion", Toast.LENGTH_LONG).show()
@@ -776,6 +807,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
                     if (currentPage != Page.SEARCH) {
+                        if (isInside(heroButtons, focus)) {
+                            navTabs[currentPage]?.requestFocus() ?: findViewById<View>(R.id.navHome).requestFocus()
+                            return true
+                        }
                         if (rowIndex == 0) {
                             setHeroMode(true)
                             if (featuredItem != null) btnHeroPlay.requestFocus()
@@ -788,6 +823,16 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (isInside(sidebarContainer, focus)) {
+                        if (currentPage == Page.SEARCH) {
+                            etSearch.requestFocus()
+                        } else if (featuredItem != null) {
+                            btnHeroPlay.requestFocus()
+                        } else if (rows.isNotEmpty()) {
+                            focusRow(0)
+                        }
+                        return true
+                    }
                     if (currentPage != Page.SEARCH) {
                         if (rowIndex >= 0) {
                             if (rowIndex < rows.lastIndex) focusRow(rowIndex + 1)
