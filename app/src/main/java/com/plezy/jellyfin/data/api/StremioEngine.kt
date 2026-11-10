@@ -57,18 +57,54 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
             val release = hints?.text("filename") ?: stream.text("title") ?: ""
             val marker = Regex("(?:19|20)\\d{2}|(?:2160|1080|720|576|480)p", RegexOption.IGNORE_CASE).find(release)
             val tags = if (marker != null) release.substring(marker.range.last + 1) else release
-            val strong = Regex("(?:^|[^a-z0-9])(?:truefrench|vff|vfq|vfi|vf|fra|fre|fr)(?:$|[^a-z0-9])", RegexOption.IGNORE_CASE)
+            val strong = Regex("(?:^|[^a-z0-9])(?:truefrench|vff|vfq|vf2|vfi|vf|fra|fre|fr)(?:$|[^a-z0-9])", RegexOption.IGNORE_CASE)
             val french = Regex("(?:^|[^a-z0-9])(?:french|fran[cç]ais)(?:$|[^a-z0-9])", RegexOption.IGNORE_CASE)
             return strong.containsMatchIn(release) || french.containsMatchIn(tags) ||
                 Regex("(?:audio|language|langue)\\s*[:=-]\\s*(?:french|fran[cç]ais|fr)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
         }
+        fun isEnglishStream(stream: JsonObject): Boolean {
+            val languages = listOfNotNull(stream.text("language")) + stream.strings("languages")
+            if (languages.any { Regex("^(en|eng|english)(?:[-_].*)?$", RegexOption.IGNORE_CASE).matches(it) }) return true
+            val hints = stream.getAsJsonObject("behaviorHints")
+            val text = listOfNotNull(stream.text("name"), stream.text("title"), stream.text("description"), hints?.text("filename")).joinToString(" ")
+            if (text.contains("🇬🇧") || text.contains("🇺🇸")) return true
+            val release = hints?.text("filename") ?: stream.text("title") ?: ""
+            return Regex("(?:^|[^a-z0-9])(?:english|eng|en|vostfr|vost|multi|dual(?:[ ._-]?audio)?)(?:$|[^a-z0-9])", RegexOption.IGNORE_CASE).containsMatchIn(release) ||
+                Regex("(?:audio|language|langue)\\s*[:=-]\\s*(?:english|anglais|eng|en)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        }
+        fun isMultiStream(stream: JsonObject): Boolean {
+            val hints = stream.getAsJsonObject("behaviorHints")
+            val text = listOfNotNull(stream.text("name"), stream.text("title"), stream.text("description"), hints?.text("filename")).joinToString(" ")
+            return Regex("(?:^|[^a-z0-9])(?:multi|dual(?:[ ._-]?audio)?|vostfr)(?:$|[^a-z0-9])", RegexOption.IGNORE_CASE).containsMatchIn(text) ||
+                (text.contains("🇫🇷") && (text.contains("🇬🇧") || text.contains("🇺🇸")))
+        }
         fun streamPriority(info: String): Int {
             val text = info.lowercase()
-            return (if (Regex("h[ ._-]?264|x264|avc").containsMatchIn(text)) 40 else 0) +
+            val resScore = when {
+                "1080p" in text -> 55
+                Regex("2160p|\\b4k\\b|\\buhd\\b").containsMatchIn(text) -> 45
+                "720p" in text -> -20
+                Regex("480p|576p|360p|\\bcam\\b|\\bts\\b|\\bscr\\b").containsMatchIn(text) -> -120
+                else -> 0
+            }
+            return (if (Regex("h[ ._-]?264|x264|avc").containsMatchIn(text)) 45 else 0) +
                 (if (Regex("\\.mp4\\b").containsMatchIn(text)) 40 else if (Regex("\\.webm\\b").containsMatchIn(text)) 20 else 0) +
-                (if ("1080p" in text) 20 else if ("720p" in text) 10 else 0) -
-                (if (Regex("2160p|\\b4k\\b").containsMatchIn(text)) 30 else 0) -
-                (if (Regex("hevc|h[ ._-]?265|x265|av1|dolby.?vision|dovi").containsMatchIn(text)) 50 else 0)
+                resScore +
+                (if (Regex("web[-_. ]?dl|webrip|bluray").containsMatchIn(text)) 15 else 0) -
+                (if (Regex("remux|bdremux|brremux|bluray\\s*remux").containsMatchIn(text)) 55 else 0) -
+                (if (Regex("hevc|h[ ._-]?265|x265|av1|dolby.?vision|dovi").containsMatchIn(text)) 20 else 0)
+        }
+        fun parseRuntimeTicks(raw: String?): Long {
+            val text = raw?.trim().orEmpty()
+            if (text.isEmpty()) return 0L
+            val hm = Regex("(\\d+)\\s*h(?:r|rs|our|ours)?\\s*(?:(\\d+)\\s*m(?:in|ins)?)?", RegexOption.IGNORE_CASE).find(text)
+            if (hm != null) {
+                val h = hm.groupValues[1].toLongOrNull() ?: 0L
+                val m = hm.groupValues.getOrNull(2)?.toLongOrNull() ?: 0L
+                return (h * 60L + m) * 600_000_000L
+            }
+            val mins = Regex("(\\d+)").find(text)?.value?.toLongOrNull() ?: 0L
+            return mins * 600_000_000L
         }
         private fun JsonObject.text(name: String): String? = get(name)?.takeIf { it.isJsonPrimitive }?.asString
         private fun JsonObject.strings(name: String): List<String> = getAsJsonArray(name)?.filter { it.isJsonPrimitive }?.map { it.asString }.orEmpty()
@@ -122,7 +158,7 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
             overview = meta.text("description") ?: "", genres = meta.strings("genres"), castMembers = meta.strings("cast"),
             productionYear = (meta.text("releaseInfo") ?: meta.text("year"))?.take(4)?.toIntOrNull(),
             communityRating = meta.text("imdbRating")?.toDoubleOrNull(), tmdbId = meta.text("moviedb_id")?.toIntOrNull(),
-            runtimeTicks = Regex("\\d+").find(meta.text("runtime") ?: "")?.value?.toLongOrNull()?.times(600000000L) ?: 0L,
+            runtimeTicks = parseRuntimeTicks(meta.text("runtime")),
             primaryImageUrl = safeUrl(meta.text("poster")), backdropImageUrl = safeUrl(meta.text("background") ?: meta.text("poster")),
             logoImageUrl = safeUrl(meta.text("logo"))).also { known[it.id] = it }
     }
@@ -205,6 +241,7 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
             series.copy(id = StremioEngine.key("series", id), type = MediaType.EPISODE, title = v.text("title") ?: v.text("name") ?: "Épisode $episode",
                 seriesName = series.title, seriesId = series.id, seasonNumber = season, episodeNumber = episode,
                 episodeTitle = v.text("title") ?: v.text("name"), overview = v.text("overview") ?: series.overview,
+                runtimeTicks = parseRuntimeTicks(v.text("runtime")).takeIf { it > 0L } ?: series.runtimeTicks,
                 primaryImageUrl = safeUrl(v.text("thumbnail")) ?: series.primaryImageUrl).also { known[it.id] = it }
         }?.sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))?.groupBy { it.seasonNumber ?: 1 }.orEmpty()
     }.orEmpty()
@@ -212,24 +249,41 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
         val (type, id) = parse(key)
         if (backend != null) {
             val data = json("$backend/api/stremio/streams?id=${encode(key)}", 30000)
-            return@coroutineScope data.getAsJsonArray("streams")?.mapNotNull {
-                val path = it.asJsonObject.text("url") ?: return@mapNotNull null
-                val hlsPath = path.replace("/media/", "/hls/") + "/master.m3u8"
-                val url = backend.toHttpUrlOrNull()?.resolve(hlsPath)?.toString() ?: return@mapNotNull null
-                Stream(url)
-            }.orEmpty()
+            fun mapEntry(obj: JsonObject, forceFallback: Boolean = false): Stream? {
+                val path = obj.text("url") ?: return null
+                val isFallback = forceFallback || obj.get("fallback")?.asBoolean == true
+                val suffix = if (isFallback) "/master.m3u8?fallback=1" else "/master.m3u8"
+                val hlsPath = path.replace("/media/", "/hls/") + suffix
+                val url = backend.toHttpUrlOrNull()?.resolve(hlsPath)?.toString() ?: return null
+                return Stream(url)
+            }
+            val primary = data.getAsJsonArray("streams")?.mapNotNull { mapEntry(it.asJsonObject, false) }.orEmpty()
+            val fallbacks = data.getAsJsonArray("fallbackStreams")?.mapNotNull { mapEntry(it.asJsonObject, true) }.orEmpty()
+            return@coroutineScope (primary + fallbacks).distinctBy { it.url.substringBefore("?") }
         }
-        addons().filter { supports(it.second, "stream", type, id) }.map { (base, _) -> async { isolated {
+        val candidates = addons().filter { supports(it.second, "stream", type, id) }.map { (base, _) -> async { isolated {
             json("$base/stream/$type/${encode(id)}.json", 30000).getAsJsonArray("streams")?.mapNotNull {
                 val s = it.asJsonObject; val url = safeUrl(s.text("url")) ?: return@mapNotNull null
                 val hints = s.getAsJsonObject("behaviorHints")
-                if (frenchOnly && !isFrenchStream(s)) return@mapNotNull null
                 if (hints?.get("notWebReady")?.asBoolean == true || Regex("rd\\s+download", RegexOption.IGNORE_CASE).containsMatchIn(s.text("name") ?: "")) return@mapNotNull null
                 val headers = hints?.getAsJsonObject("proxyHeaders")?.getAsJsonObject("request")?.entrySet()?.mapNotNull { (k, v) ->
                     if (k.lowercase() !in listOf("user-agent", "referer", "origin", "authorization", "cookie") || !v.isJsonPrimitive || v.asString.any { it == '\r' || it == '\n' }) null else k to v.asString
                 }?.toMap().orEmpty()
-                Stream(url, headers, streamPriority(listOfNotNull(s.text("name"), s.text("title"), hints?.text("filename")).joinToString(" ")))
+                val info = listOfNotNull(s.text("name"), s.text("title"), hints?.text("filename")).joinToString(" ")
+                val dualBonus = if (isFrenchStream(s) && isEnglishStream(s)) 20 else 0
+                Triple(s, Stream(url, headers, streamPriority(info) + dualBonus), isFrenchStream(s))
             }.orEmpty()
-        }.orEmpty() } }.awaitAll().flatten().sortedByDescending { it.priority }.distinctBy { it.url to it.headers }
+        }.orEmpty() } }.awaitAll().flatten()
+        val chosen = if (!frenchOnly) {
+            candidates.map { it.second }
+        } else {
+            val strictFr = candidates.filter { it.third }.map { it.second }
+            if (strictFr.isNotEmpty()) strictFr
+            else {
+                val multi = candidates.filter { isMultiStream(it.first) }.map { it.second }
+                if (multi.isNotEmpty()) multi else candidates.map { it.second }
+            }
+        }
+        chosen.sortedByDescending { it.priority }.distinctBy { it.url to it.headers }
     }
 }

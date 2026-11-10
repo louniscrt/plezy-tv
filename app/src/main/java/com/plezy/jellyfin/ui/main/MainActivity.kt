@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity() {
     private var featuredTop10 = false
     private var heroMode = true
     private var pageJob: Job? = null
+    private var navSwitchJob: Job? = null
     private var pageGeneration = 0
     private var backdropJob: Job? = null
     private var searchJob: Job? = null
@@ -192,13 +193,20 @@ class MainActivity : AppCompatActivity() {
 
         navTabs.forEach { (page, view) ->
             view.setOnClickListener {
+                navSwitchJob?.cancel()
                 if (currentPage != page) openPage(page)
             }
             view.setOnFocusChangeListener { v, hasFocus ->
                 val s = if (hasFocus) 1.08f else 1.0f
-                v.animate().scaleX(s).scaleY(s).translationZ(if (hasFocus) 8f else 0f).setInterpolator(interp).setDuration(260).start()
+                v.animate().scaleX(s).scaleY(s).translationZ(if (hasFocus) 8f else 0f).setInterpolator(interp).setDuration(220).start()
                 if (hasFocus && currentPage != page) {
-                    openPage(page)
+                    navSwitchJob?.cancel()
+                    navSwitchJob = lifecycleScope.launch {
+                        delay(180L)
+                        if (v.hasFocus() && currentPage != page) {
+                            openPage(page)
+                        }
+                    }
                 }
             }
         }
@@ -600,9 +608,9 @@ class MainActivity : AppCompatActivity() {
         } else item.overview
         tvHeroOverview.text = overview.ifBlank { "Sélectionnez ce titre pour lancer la lecture ou afficher les détails complets." }
 
-        // Tag classification à droite (style | 16+)
+        // Tag classification à droite (style | 16+ · FR · EN)
         val rating = item.officialRating?.takeIf { it.isNotBlank() } ?: "16+"
-        tvHeroMeta.text = rating
+        tvHeroMeta.text = "$rating  ·  FR · EN"
 
         // Visuel plein écran
         val url = item.backdropImageUrl ?: item.thumbImageUrl ?: item.primaryImageUrl
@@ -814,7 +822,21 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    if (currentPage != Page.SEARCH) {
+                    if (currentPage == Page.SEARCH) {
+                        val rvSearch = findViewById<RecyclerView>(R.id.rvSearchResults)
+                        val btnConnect = findViewById<View>(R.id.btnConnectSeerr)
+                        if (focus === etSearch || focus === btnConnect) {
+                            navTabs[Page.SEARCH]?.requestFocus()
+                            return true
+                        }
+                        if (focus != null && focus.parent === rvSearch) {
+                            val holder = rvSearch.findContainingViewHolder(focus)
+                            if ((holder?.bindingAdapterPosition ?: 0) < 4) {
+                                etSearch.requestFocus()
+                                return true
+                            }
+                        }
+                    } else {
                         if (isInside(heroButtons, focus)) {
                             navTabs[currentPage]?.requestFocus() ?: findViewById<View>(R.id.navHome).requestFocus()
                             return true
@@ -841,7 +863,15 @@ class MainActivity : AppCompatActivity() {
                         }
                         return true
                     }
-                    if (currentPage != Page.SEARCH) {
+                    if (currentPage == Page.SEARCH) {
+                        val rvSearch = findViewById<RecyclerView>(R.id.rvSearchResults)
+                        val btnConnect = findViewById<View>(R.id.btnConnectSeerr)
+                        if (focus === etSearch) {
+                            if (rvSearch.childCount > 0) rvSearch.getChildAt(0).requestFocus()
+                            else if (btnConnect.visibility == View.VISIBLE) btnConnect.requestFocus()
+                            return true
+                        }
+                    } else {
                         if (rowIndex >= 0) {
                             if (rowIndex < rows.lastIndex) focusRow(rowIndex + 1)
                             return true
@@ -850,6 +880,16 @@ class MainActivity : AppCompatActivity() {
                             if (rows.isNotEmpty()) focusRow(0)
                             return true
                         }
+                    }
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    if (focus != null && rowIndex >= 0) {
+                        focus.performClick()
+                        return true
+                    }
+                    if (featuredItem != null && btnHeroPlay.visibility == View.VISIBLE) {
+                        btnHeroPlay.performClick()
+                        return true
                     }
                 }
             }

@@ -66,6 +66,10 @@ test('Stremio playback uses every available link without contacting Jellyfin',as
   assert.equal((await p.negotiate(item)).url.split('?')[0],'/api/stremio/hls/first/master.m3u8');
   assert.equal((await p.negotiate(item,{force:true})).url.split('?')[0],'/api/stremio/hls/second/master.m3u8');
   const last=await p.negotiate(item,{force:true});assert.equal(last.url.split('?')[0],'/api/stremio/hls/third/master.m3u8');assert.equal(last.hasMore,false);
+  assert.equal(last.source.DefaultAudioStreamIndex,1);
+  assert.deepEqual([...last.source.MediaStreams.map(s=>s.Language)],['fra','eng']);
   await assert.rejects(()=>p.negotiate(item,{force:true}),/Aucun autre/);
+  const compat=await p.negotiate(item,{force:'compatible'});assert.match(compat.url,/\/api\/stremio\/hls\/first\/master\.m3u8\?fallback=1/);
+  const en=await p.negotiate(item,{audio:2});assert.match(en.url,/lang=en/);
  }
 });

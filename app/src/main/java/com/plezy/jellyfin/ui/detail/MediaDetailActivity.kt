@@ -2,6 +2,7 @@ package com.plezy.jellyfin.ui.detail
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -127,8 +128,14 @@ class MediaDetailActivity : AppCompatActivity() {
     private fun loadDetails() {
         btnPlayEpisode.isEnabled = false
         lifecycleScope.launch {
-            if (currentItem.isSeerrMedia && jellyfinClient.stremio.enabled && currentItem.tmdbId != null) {
-                jellyfinClient.stremio.engine.resolveTmdb(currentItem.tmdbId!!, currentItem.type == MediaType.SERIES)?.let { currentItem = it }
+            if (currentItem.isSeerrMedia && jellyfinClient.stremio.enabled) {
+                if (currentItem.tmdbId != null) {
+                    jellyfinClient.stremio.engine.resolveTmdb(currentItem.tmdbId!!, currentItem.type == MediaType.SERIES)?.let { currentItem = it }
+                }
+                if (currentItem.isSeerrMedia && currentItem.title.isNotBlank()) {
+                    val kind = if (currentItem.type == MediaType.SERIES) "series" else "movie"
+                    jellyfinClient.stremio.engine.catalog(listOf(kind), search = currentItem.title, limit = 5).firstOrNull()?.let { currentItem = it }
+                }
             }
             if (currentItem.isSeerrMedia) {
                 val tmdbId = currentItem.tmdbId
@@ -571,9 +578,13 @@ class MediaDetailActivity : AppCompatActivity() {
 
     private fun openPlayer(item: MediaItem) {
         lifecycleScope.launch {
-            val target = if (jellyfinClient.stremio.enabled && !item.id.startsWith("stremio~") && item.type != MediaType.EPISODE && item.tmdbId != null) {
+            var target = if (jellyfinClient.stremio.enabled && !item.id.startsWith("stremio~") && item.type != MediaType.EPISODE && item.tmdbId != null) {
                 jellyfinClient.stremio.engine.resolveTmdb(item.tmdbId, item.type == MediaType.SERIES) ?: item
             } else item
+            if (target.isSeerrMedia && jellyfinClient.stremio.enabled && target.title.isNotBlank()) {
+                val kind = if (target.type == MediaType.SERIES) "series" else "movie"
+                jellyfinClient.stremio.engine.catalog(listOf(kind), search = target.title, limit = 5).firstOrNull()?.let { target = it }
+            }
             if (target.isSeerrMedia) {
                 Toast.makeText(this@MediaDetailActivity, "Aucun lien français disponible pour ce titre", Toast.LENGTH_LONG).show()
                 return@launch
@@ -584,5 +595,62 @@ class MediaDetailActivity : AppCompatActivity() {
             intent.putExtra("playlist", ArrayList(allEpisodes))
             startActivity(intent)
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    if (btnPlayEpisode.visibility == View.VISIBLE && btnPlayEpisode.isEnabled) {
+                        btnPlayEpisode.performClick()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    val f = currentFocus
+                    if (f === btnPlayEpisode || f === btnOverseerrRequest) {
+                        when {
+                            tvSeason1Header.visibility == View.VISIBLE && tvSeason1Header.isFocusable -> {
+                                tvSeason1Header.requestFocus(); return true
+                            }
+                            rvSeason1.visibility == View.VISIBLE && rvSeason1.childCount > 0 -> {
+                                rvSeason1.getChildAt(0).requestFocus(); return true
+                            }
+                            rvCastCrew.visibility == View.VISIBLE && rvCastCrew.childCount > 0 -> {
+                                rvCastCrew.getChildAt(0).requestFocus(); return true
+                            }
+                        }
+                    } else if (f === tvSeason1Header && rvSeason1.visibility == View.VISIBLE && rvSeason1.childCount > 0) {
+                        rvSeason1.getChildAt(0).requestFocus()
+                        return true
+                    } else if (f != null && f.parent === rvSeason1 && rvCastCrew.visibility == View.VISIBLE && rvCastCrew.childCount > 0) {
+                        rvCastCrew.getChildAt(0).requestFocus()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    val f = currentFocus
+                    if (f != null && f.parent === rvCastCrew) {
+                        if (rvSeason1.visibility == View.VISIBLE && rvSeason1.childCount > 0) {
+                            rvSeason1.getChildAt(0).requestFocus()
+                        } else {
+                            btnPlayEpisode.requestFocus()
+                        }
+                        return true
+                    } else if (f != null && f.parent === rvSeason1) {
+                        if (tvSeason1Header.visibility == View.VISIBLE && tvSeason1Header.isFocusable) {
+                            tvSeason1Header.requestFocus()
+                        } else {
+                            btnPlayEpisode.requestFocus()
+                        }
+                        return true
+                    } else if (f === tvSeason1Header) {
+                        btnPlayEpisode.requestFocus()
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 }

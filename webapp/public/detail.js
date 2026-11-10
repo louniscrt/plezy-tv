@@ -74,8 +74,13 @@
       const art=A.image(item,'Backdrop',1600);setImage('dBackdrop',art);
       const logo=A.image(item,'Logo',760), hasLogo=setImage('dLogo',logo);
       $('dTitle').textContent=item.Name||'';$('dTitle').classList.toggle('detail-title-fallback',!!hasLogo);
-      const p=progress(playing);$('dResume').hidden=!p.visible;$('dProgressFill').style.width=p.percent+'%';$('dProgressText').textContent=p.label;
-      $('dMeta').replaceChildren(...facts(item,options).map(m=>el('span',m.badge?'detail-badge':'',m.text)));
+      const p=progress(playing);$('dResume').hidden=!p.visible;$('dProgressFill').style.width=(p.visible?p.percent:0)+'%';$('dProgressText').textContent=p.visible?p.label:'';
+      $('dMeta').replaceChildren(
+        ...facts(item,options).map(m=>el('span',m.badge?'detail-badge':'',m.text)),
+        el('span','detail-badge detail-badge-lang','Français (Principal)'),
+        el('span','detail-badge detail-badge-lang','Anglais'),
+        el('span','detail-badge detail-badge-lang','Sous-titres FR · EN')
+      );
       $('dRating').hidden=!item.OfficialRating;$('dRating').replaceChildren();
       if(item.OfficialRating)$('dRating').append(el('span','detail-age',item.OfficialRating.replace(/^FR-/,'')));
       const label=episodeLabel(playing);$('dEpHeader').hidden=!label;$('dEpHeader').textContent=label;
@@ -94,6 +99,8 @@
       $('dAboutTitle').textContent='À propos de '+(item.Name||'ce programme');
       const about=[];
       if(item.Overview)about.push(el('p','',item.Overview));
+      {const row=el('p');row.append(el('span','detail-fact-label','Langues audio : '),document.createTextNode('Français (principale, par défaut), Anglais'));about.push(row);}
+      {const row=el('p');row.append(el('span','detail-fact-label','Sous-titres : '),document.createTextNode('Français, Anglais'));about.push(row);}
       if(item.Genres?.length){const row=el('p');row.append(el('span','detail-fact-label','Genres : '),document.createTextNode(item.Genres.join(', ')));about.push(row);}
       if(cast.length){const row=el('p');row.append(el('span','detail-fact-label','Distribution : '),document.createTextNode(cast.map(p=>p.Name).join(', ')));about.push(row);}
       if(directors.length){const row=el('p');row.append(el('span','detail-fact-label','Réalisation : '),document.createTextNode(directors.join(', ')));about.push(row);}

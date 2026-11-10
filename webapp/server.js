@@ -85,6 +85,12 @@ function proxy(req, res, target, redirects = 0, inheritedHeaders, mediaTicket) {
 function createServer(options = {}) {
   const pairing=require('./pairing').createPairing();
   const stremio = options.stremio || require('./stremio').createStremio();
+  if (!options.stremio && stremio.enabled) {
+    setTimeout(() => {
+      stremio.catalog({ type: 'movie', limit: 100 }).catch(() => {});
+      stremio.catalog({ type: 'series', limit: 100 }).catch(() => {});
+    }, 250).unref?.();
+  }
   return http.createServer((req, res) => {
     res.setHeader('X-Plezy-Relay', '1');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -107,11 +113,36 @@ function createServer(options = {}) {
         })().catch(error => send([400, 409, 413, 503].includes(error.status) ? error.status : 502, { error: error.status === 409 ? 'Une demande existe déjà dans Seerr.' : 'La demande Seerr ne peut pas être envoyée.' }));
         return;
       }
+      if (route.startsWith('subtitles/')) {
+        const subId = route.slice('subtitles/'.length).replace(/\.vtt$/i, '');
+        const entry = stremio.getTicket(subId);
+        if (!entry) return send(404, { error: 'Sous-titres expirés' });
+        const wantedLang = url.searchParams.get('lang');
+        if (wantedLang === 'fr' || wantedLang === 'en') {
+          const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
+          return require('./stremio-media').subtitleMedia(req, res, subId, { lang: wantedLang, identity: entry.url + JSON.stringify(entry.headers), upstreamUrl: entry.url, hasCustomHeaders });
+        }
+        fetch(entry.url, { signal: AbortSignal.timeout(8000), headers: entry.headers || {} })
+          .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+          .then(raw => {
+            const clean = String(raw || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+            const vtt = clean.startsWith('WEBVTT')
+              ? clean
+              : 'WEBVTT\n\n' + clean.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2 --> $3.$4');
+            res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'private, max-age=3600', 'Access-Control-Allow-Origin': '*' });
+            res.end(req.method === 'HEAD' ? undefined : vtt);
+          })
+          .catch(() => { if (!res.headersSent) { res.writeHead(502); res.end(); } });
+        return;
+      }
       if (route.startsWith('hls/')) {
-        const match = /^hls\/([a-f0-9]{48})\/(master\.m3u8|quality-(360|480|720)\.m3u8|segment-(360|480|720)-(\d+)\.ts)$/.exec(route);
+        const match = /^hls\/([a-f0-9]{48})\/(master\.m3u8|quality-(360|480|720|1080|2160)\.m3u8|segment-(360|480|720|1080|2160)-(\d+)\.ts)$/.exec(route);
         if (!match) return send(404, { error: 'Chemin invalide' });
         const entry = stremio.getTicket(match[1]); if (!entry) return send(404, { error: 'Lien expiré' });
-        return require('./stremio-media').hlsMedia(req, res, match[1], match[5] === undefined ? undefined : Number(match[5]), entry.url + JSON.stringify(entry.headers), Number(match[3] || match[4] || 720), match[2] === 'master.m3u8');
+        const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'fr';
+        const allowFallback = url.searchParams.get('fallback') === '1' || lang === 'en' || Boolean(entry.fallback);
+        const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
+        return require('./stremio-media').hlsMedia(req, res, match[1], match[5] === undefined ? undefined : Number(match[5]), entry.url + JSON.stringify(entry.headers), Number(match[3] || match[4] || 1080), match[2] === 'master.m3u8', { lang, allowFallback, upstreamUrl: entry.url, hasCustomHeaders });
       }
       if (route.startsWith('media/')) {
         const entry = stremio.getTicket(route.slice(6));
@@ -119,7 +150,10 @@ function createServer(options = {}) {
         if (url.searchParams.get('playback') === 'browser' || url.searchParams.get('probe') === '1') {
           const start = Number(url.searchParams.get('start') || 0);
           if (!Number.isFinite(start) || start < 0 || start > 604800) return send(400, { error: 'Position invalide' });
-          return require('./stremio-media').browserMedia(req, res, route.slice(6), { start, probeOnly: url.searchParams.get('probe') === '1', identity: entry.url + JSON.stringify(entry.headers) });
+          const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'fr';
+          const allowFallback = url.searchParams.get('fallback') === '1' || lang === 'en' || Boolean(entry.fallback);
+          const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
+          return require('./stremio-media').browserMedia(req, res, route.slice(6), { start, probeOnly: url.searchParams.get('probe') === '1', identity: entry.url + JSON.stringify(entry.headers), lang, allowFallback, upstreamUrl: entry.url, hasCustomHeaders });
         }
         return proxy(req, res, entry.url, 0, { ...entry.headers, ...(req.headers.range ? { range: req.headers.range } : {}) }, stremio.ticket);
       }
@@ -138,8 +172,49 @@ function createServer(options = {}) {
         if (route === 'meta') return send(200, (await stremio.meta(id)).item);
         if (route === 'episodes') return send(200, { Items: await stremio.episodes(id) });
         if (route === 'streams') {
-          const streams = await stremio.streams(id);
-          return send(200, { streams: streams.map(s => ({ url: stremio.ticket(s), hls: /\.m3u8(?:\?|$)/i.test(s.url) })) });
+          const [raw, rawSubs] = await Promise.all([
+            stremio.streams(id, { includeVariants: true }),
+            typeof stremio.subtitles === 'function'
+              ? Promise.race([stremio.subtitles(id).catch(() => []), new Promise(r => setTimeout(() => r([]), 5000))])
+              : Promise.resolve([])
+          ]);
+          const primary = Array.isArray(raw) ? raw : (raw.streams || []);
+          const english = Array.isArray(raw) ? [] : (raw.englishStreams || []);
+          const fallback = Array.isArray(raw) ? [] : (raw.fallbackStreams || []);
+          const toTicket = s => ({ url: stremio.ticket(s), hls: /\.m3u8(?:\?|$)/i.test(s.url), lang: s.lang || 'fr', fallback: Boolean(s.fallback) });
+          const mappedStreams = primary.map(toTicket);
+          const mappedEnglish = english.map(s => ({ ...toTicket(s), lang: 'en', fallback: true }));
+          const mappedFallback = fallback.map(s => ({ ...toTicket(s), fallback: true }));
+          const mappedSubtitles = (rawSubs || []).map((s, idx) => {
+            const tPath = stremio.ticket({ url: s.url, headers: {} });
+            const ticketId = tPath.split('/').pop();
+            return {
+              index: 101 + idx,
+              lang: s.lang,
+              language: s.language,
+              label: s.label,
+              url: `/api/stremio/subtitles/${ticketId}.vtt`
+            };
+          });
+          const firstCandidate = mappedStreams[0];
+          if (firstCandidate && !firstCandidate.hls) {
+            const ticketId = firstCandidate.url.split('/').pop();
+            const entry = stremio.getTicket(ticketId);
+            if (entry) {
+              const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
+              require('./stremio-media').warmProbe?.(ticketId, entry.url + JSON.stringify(entry.headers), { upstreamUrl: entry.url, hasCustomHeaders });
+            }
+          }
+          return send(200, {
+            streams: mappedStreams,
+            englishStreams: mappedEnglish,
+            fallbackStreams: mappedFallback,
+            subtitles: mappedSubtitles,
+            languages: [
+              { code: 'fr', label: 'Français', primary: true, default: true },
+              { code: 'en', label: 'Anglais', primary: false, default: false }
+            ]
+          });
         }
         send(404, { error: 'Route inconnue' });
       })().catch(() => send(502, { error: 'Addon indisponible ou réponse invalide' }));

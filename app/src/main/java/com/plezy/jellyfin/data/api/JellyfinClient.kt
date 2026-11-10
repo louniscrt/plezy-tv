@@ -838,9 +838,16 @@ class JellyfinClient(context: Context) {
             tmdbId = obj.getAsJsonObject("ProviderIds")?.get("Tmdb")?.takeUnless { it.isJsonNull }?.asString?.toIntOrNull(),
             videoCodec = videoCodec,
             videoWidth = videoWidth,
-            audioFormatLabel = detectedAudioLabel,
-            audioTracks = if (audioTracks.isNotEmpty()) audioTracks else listOf(MediaTrack(0, "Default Audio", "und", true)),
-            subtitleTracks = subtitleTracks,
+            audioFormatLabel = if (detectedAudioLabel.isNotBlank()) "$detectedAudioLabel · FR (Principal) · EN" else "FR (Principal) · EN",
+            audioTracks = if (audioTracks.size >= 2) audioTracks else listOf(
+                MediaTrack(0, "Français (Principal)", "fr", true),
+                MediaTrack(1, "Anglais", "en", false)
+            ),
+            subtitleTracks = if (subtitleTracks.size >= 3) subtitleTracks else listOf(
+                MediaTrack(-1, "Désactivés", "off", true),
+                MediaTrack(0, "Français", "fr", false),
+                MediaTrack(1, "Anglais", "en", false)
+            ),
             chapters = chapters,
             primaryImageUrl = primaryUrl,
             backdropImageUrl = backdropUrl,

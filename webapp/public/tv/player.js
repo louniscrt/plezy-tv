@@ -4,7 +4,7 @@
   const { $, action, text, toast, run } = U, video = $('video');
   $('screen-player').dataset.build = '20261103-2';
   let item, source, plan, hls, next, episodeList = [], returnScreen = 'detail';
-  let reportTimer, hideTimer, startupTimer, negotiation, generation = 0, loadGeneration = 0;
+  let reportTimer, hideTimer, startupTimer, bufferTimer, negotiation, generation = 0, loadGeneration = 0;
   let desiredStart = 0, offset = 0, audio, subtitle = -1, bitrate = 0, aspect = 0, fallback = false, switching = false, started = false, seeking = false;
   let state = 'idle', preferMse = false, parkedArtwork = [];
   const emptyArtwork='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -61,10 +61,10 @@
     text('pNoticeText', message);
     $('pPlay').setAttribute('aria-label', video.paused ? 'Lecture' : 'Pause');
     $('pPlayIco').innerHTML = video.paused ? '<path d="M7 3v18l15-9z"/>' : '<path d="M5 3h5v18H5zM14 3h5v18h-5z"/>';
-    wake();
+    if (!started || value === 'paused' || value === 'error' || !$('playerUi').classList.contains('hide')) wake();
   }
   function fail(message) {
-    clearTimeout(startupTimer); switching = true; video.pause(); switching = false;
+    clearTimeout(startupTimer); clearTimeout(bufferTimer); switching = true; video.pause(); switching = false;
     setState('error', message);
   }
   async function playVideo() {
@@ -80,7 +80,34 @@
   function destroyMedia() {
     delete video.dataset.playingFrame;
     if (hls) { hls.destroy(); hls = null; }
+    for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
     video.onloadedmetadata = null; video.pause(); video.removeAttribute('src'); video.load();
+  }
+  function resetTimelineUi(startSec = 0) {
+    $('pFill').style.width = $('pKnob').style.left = '0%';
+    $('pBuf').style.width = '0%';
+    $('pBar').setAttribute('aria-valuenow', Math.floor(startSec));
+    $('pBar').setAttribute('aria-valuemax', 0);
+    $('pBar').setAttribute('aria-valuetext', time(startSec));
+    text('pCur', time(startSec));
+    text('pRem', '0:00');
+    text('pEnds', '');
+    text('pChapter', '');
+  }
+  function applyExternalSubtitles() {
+    for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
+    if (!item?.stremio || subtitle < 0) return;
+    const chosen = streams('Subtitle').find(s => s.Index === subtitle && s.DeliveryUrl);
+    if (!chosen || !document.createElement) return;
+    const trackEl = document.createElement('track');
+    trackEl.kind = 'subtitles';
+    trackEl.label = chosen.DisplayTitle || 'Sous-titres';
+    trackEl.srclang = chosen.Language === 'eng' ? 'en' : 'fr';
+    trackEl.src = chosen.DeliveryUrl;
+    trackEl.default = true;
+    trackEl.setAttribute('data-plezy-sub', '1');
+    video.appendChild(trackEl);
+    if (video.textTracks?.[0]) video.textTracks[0].mode = 'showing';
   }
   async function recover(message) {
     if (!item || switching || state === 'error') return;
@@ -96,10 +123,12 @@
   async function load(start = 0, force = false) {
     const version = ++loadGeneration, active = item;
     negotiation?.abort(); negotiation = new AbortController();
-    clearTimeout(startupTimer); switching = true;
+    clearTimeout(startupTimer); clearTimeout(bufferTimer); switching = true;
     const previous = plan; report('Stopped'); stopEncoding(previous); destroyMedia(); plan = null;
     started = false;
     desiredStart = Math.max(0, start); offset = 0;
+    if (desiredStart === 0) video.currentTime = 0;
+    resetTimelineUi(desiredStart);
     setState('loading');
     try {
       if (active.offline) plan = { url: '/offline-media/' + active.offlineFile, hls: false, method: 'DirectPlay', offset: 0 };
@@ -117,14 +146,18 @@
         console.info('Plezy lecture ' + JSON.stringify({ mode: plan.method, hls: plan.hls, container: source?.Container, video: source?.MediaStreams?.find(s => s.Type === 'Video')?.Codec, audio: source?.MediaStreams?.find(s => s.Type === 'Audio')?.Codec }));
       }
       if (version !== loadGeneration || item !== active) return;
+      if (active.stremio && plan.duration > 0) active.RunTimeTicks = Math.round(plan.duration * 10000000);
       offset = plan.offset || 0;
       renderLanguageShortcuts();
       text('pStream', active.demo ? 'Démonstration' : active.offline ? 'Hors connexion' : plan.method === 'DirectPlay' ? 'Lecture directe' : 'Lecture compatible · HLS');
       video.onloadedmetadata = () => {
+        applyExternalSubtitles();
         if (active.stremio && video.audioTracks) {
           const tracks = Array.from(video.audioTracks);
-          const french = tracks.find(t => /^(fr|fra|fre)(?:-|$)/i.test(t.language || '') || /fran[cç]ais|french/i.test(t.label || ''));
-          if (french) tracks.forEach(t => { t.enabled = t === french; });
+          const wanted = audio === 2
+            ? tracks.find(t => /^(en|eng)(?:-|$)/i.test(t.language || '') || /english|anglais/i.test(t.label || ''))
+            : tracks.find(t => /^(fr|fra|fre)(?:-|$)/i.test(t.language || '') || /fran[cç]ais|french/i.test(t.label || ''));
+          if (wanted) tracks.forEach(t => { t.enabled = t === wanted; });
         }
         if (version !== loadGeneration || item !== active) return;
         clearTimeout(startupTimer); switching = false;
@@ -135,12 +168,17 @@
         video.playbackRate = selectedSpeed;
         updateTimeline(); playVideo();
       };
-      const url = active.offline ? plan.url : A.proxy(plan.url);
+      const wantedHeight = bitrate >= 18000000 ? 2160 : bitrate > 0 && bitrate <= 2000000 ? 480 : bitrate > 0 && bitrate <= 5000000 ? 720 : 1080;
+      const rawUrl = active.offline ? plan.url : A.proxy(plan.url);
+      const url = active.stremio && plan.hls ? rawUrl.replace('/master.m3u8', `/quality-${wantedHeight}.m3u8`) : rawUrl;
       // Le lecteur natif de la TV évite le tampon et le transmuxage JS en double.
       // HLS.js reste disponible si le moteur natif échoue ou n'est pas annoncé.
       if (plan.hls && (preferMse || !nativeHls()) && window.Hls?.isSupported()) {
-        hls = new Hls({ startPosition: Math.max(0, desiredStart - offset), maxBufferLength: 12, maxMaxBufferLength: 24, maxBufferSize: 24*1000*1000, backBufferLength: 0, lowLatencyMode: false, manifestLoadingTimeOut: 25000, fragLoadingTimeOut: 45000 });
-        hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => console.info('Plezy manifeste ' + JSON.stringify({ levels: data.levels?.length })));
+        hls = new Hls({ startPosition: Math.max(0, desiredStart - offset), startLevel: 0, capLevelToPlayerSize: false, maxBufferLength: 12, maxMaxBufferLength: 24, maxBufferSize: 24*1000*1000, backBufferLength: 0, lowLatencyMode: false, manifestLoadingTimeOut: 25000, fragLoadingTimeOut: 45000 });
+        hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+          console.info('Plezy manifeste ' + JSON.stringify({ levels: data.levels?.length }));
+        });
+        applyExternalSubtitles();
         let fragmentLogged = false;
         let diagnosing = false;
         hls.on(Hls.Events.FRAG_BUFFERED, () => { if (!fragmentLogged) { fragmentLogged = true; console.info('Plezy premier segment prêt'); } });
@@ -154,6 +192,7 @@
           }
           if (!data.fatal) return;
           if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsRecovered) { hlsRecovered = true; hls.recoverMediaError(); return; }
+          if (active.stremio && plan?.hasMore) { recover('Le flux vidéo ne répond pas. Essai d’une autre source…'); return; }
           fail(status === 401 || status === 403 ? 'Jellyfin refuse l’accès au flux vidéo. Vérifiez les droits de lecture de votre compte.' : status ? `Jellyfin ne fournit pas le flux vidéo (HTTP ${status}). Essayez une autre qualité.` : 'Le flux HLS ne peut pas être lu. Essayez une autre qualité ou vérifiez le transcodage Jellyfin.');
         });
         hlsRecovered = false; hls.attachMedia(video); hls.loadSource(url);
@@ -207,6 +246,8 @@
       }).catch(()=>{});
     }
     $('pLanguages').replaceChildren();
+    video.currentTime = 0;
+    resetTimelineUi(0);
     $('pPlay').blur(); U.show('player'); setState('loading');
     try {
       if (!selected.demo && !source && !selected.offline) {
@@ -218,7 +259,7 @@
     } catch (error) { if (version === generation) fail(error.message); }
   }
   function stop(record = true, navigate = true) {
-    report('Stopped').then(()=>window.dispatchEvent?.(new Event('plezy:playback-stopped'))); stopEncoding(plan); clearInterval(reportTimer); clearTimeout(hideTimer); clearTimeout(startupTimer);
+    report('Stopped').then(()=>window.dispatchEvent?.(new Event('plezy:playback-stopped'))); stopEncoding(plan); clearInterval(reportTimer); clearTimeout(hideTimer); clearTimeout(startupTimer); clearTimeout(bufferTimer);
     ++generation; ++loadGeneration; negotiation?.abort(); switching = true; destroyMedia(); switching = false; item = null; plan = null; state = 'idle';
     restoreArtwork();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -235,7 +276,26 @@
   function choose(title, options, current, callback) {
     U.modal(title, options.map(([label, value]) => action(label, async () => { U.closeModal(); await callback(value); }, 'opt' + (current === value ? ' sel' : ''))));
   }
-  const streams = type => (source?.MediaStreams || item?.MediaStreams || []).filter(s => s.Type === type);
+  const streams = type => {
+    const raw = (source?.MediaStreams || item?.MediaStreams || []).filter(s => s.Type === type);
+    if (item?.demo || item?.offline) return raw;
+    if (type === 'Audio' && raw.length < 2) {
+      const fr = raw.find(a => /^(fr|fra|fre)/i.test(a.Language || '')) || raw[0] || { Type: 'Audio', Index: 1, Language: 'fra', DisplayTitle: 'Français (Principal)' };
+      const en = raw.find(a => /^(en|eng)/i.test(a.Language || '')) || { Type: 'Audio', Index: fr.Index === 2 ? 1 : 2, Language: 'eng', DisplayTitle: 'Anglais' };
+      return [fr, en];
+    }
+    if (type === 'Subtitle' && (item?.stremio || raw.length === 0)) {
+      const hasFr = raw.some(s => /^(fr|fra|fre)/i.test(s.Language || ''));
+      const hasEn = raw.some(s => /^(en|eng)/i.test(s.Language || ''));
+      const ticketMatch = /\/api\/stremio\/(?:hls|media)\/([a-f0-9]{48})/.exec(plan?.url || '');
+      const baseVtt = ticketMatch ? `/api/stremio/subtitles/${ticketMatch[1]}.vtt` : '';
+      const list = [...raw];
+      if (!hasFr) list.push({ Type: 'Subtitle', Index: 101, Language: 'fra', DisplayTitle: 'Français', DeliveryUrl: baseVtt ? `${baseVtt}?lang=fr` : '' });
+      if (!hasEn) list.push({ Type: 'Subtitle', Index: 102, Language: 'eng', DisplayTitle: 'Anglais', DeliveryUrl: baseVtt ? `${baseVtt}?lang=en` : '' });
+      return list;
+    }
+    return raw;
+  };
   function renderLanguageShortcuts() {
     const audios = streams('Audio'), subs = streams('Subtitle');
     const currentAudio = audio ?? source?.DefaultAudioStreamIndex ?? audios[0]?.Index;
@@ -255,7 +315,11 @@
     choices.slice(0,3).forEach(choice => {
       const selected = choice.audio===currentAudio && choice.subtitle===subtitle;
       const button = action((selected?'✓  ':'')+choice.label, async () => {
-        const at = position(); audio = choice.audio; subtitle = choice.subtitle; await load(at,false);
+        const sameAudio = choice.audio === currentAudio;
+        const at = Math.max(desiredStart, position());
+        audio = choice.audio; subtitle = choice.subtitle;
+        if (item?.stremio && sameAudio) { applyExternalSubtitles(); renderLanguageShortcuts(); return; }
+        await load(at,false);
       },'language-pill'+(selected?' selected':''));
       button.setAttribute('aria-pressed',String(selected)); root.append(button);
     });
@@ -263,16 +327,41 @@
   }
   $('pAudio').onclick = () => {
     const tracks = streams('Audio'); if (item?.demo || item?.offline || !tracks.length) return toast('Aucune autre piste audio disponible.');
-    choose('Piste audio', tracks.map(s => [s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index, s.Index]), audio ?? source?.DefaultAudioStreamIndex, async value => { const at = position(); audio = value; await load(at, false); });
+    choose('Piste audio', tracks.map(s => [s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index, s.Index]), audio ?? source?.DefaultAudioStreamIndex, async value => { const at = Math.max(desiredStart, position()); audio = value; await load(at, false); });
   };
   $('pSubs').onclick = () => {
     if (item?.demo || item?.offline) return toast('La sélection des sous-titres nécessite une lecture depuis Jellyfin.');
-    choose('Sous-titres', [['Désactivés', -1], ...streams('Subtitle').map(s => [s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index, s.Index])], subtitle, async value => { const at = position(); subtitle = value; await load(at, false); });
+    choose('Sous-titres', [['Désactivés', -1], ...streams('Subtitle').map(s => [s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index, s.Index])], subtitle, async value => {
+      subtitle = value;
+      if (item?.stremio) { applyExternalSubtitles(); renderLanguageShortcuts(); return; }
+      const at = Math.max(desiredStart, position()); await load(at, false);
+    });
   };
-  $('pTracks').onclick = () => U.modal('Audio et sous-titres', [action('Audio', () => $('pAudio').click()), action('Sous-titres', () => $('pSubs').click())]);
+  $('pTracks').onclick = () => {
+    const audios = streams('Audio'), subs = streams('Subtitle');
+    const currentAudio = audio ?? source?.DefaultAudioStreamIndex ?? audios[0]?.Index;
+    const items = [
+      ...audios.map(s => action((currentAudio === s.Index ? '✓ ' : '') + 'Audio : ' + (s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index), async () => {
+        U.closeModal(); const at = Math.max(desiredStart, position()); audio = s.Index; await load(at, false);
+      }, 'opt' + (currentAudio === s.Index ? ' sel' : ''))),
+      action((subtitle === -1 ? '✓ ' : '') + 'Sous-titres : Désactivés', async () => {
+        U.closeModal(); subtitle = -1;
+        if (item?.stremio) { applyExternalSubtitles(); renderLanguageShortcuts(); return; }
+        const at = Math.max(desiredStart, position()); await load(at, false);
+      }, 'opt' + (subtitle === -1 ? ' sel' : '')),
+      ...subs.map(s => action((subtitle === s.Index ? '✓ ' : '') + 'Sous-titres : ' + (s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index), async () => {
+        U.closeModal(); subtitle = s.Index;
+        if (item?.stremio) { applyExternalSubtitles(); renderLanguageShortcuts(); return; }
+        const at = Math.max(desiredStart, position()); await load(at, false);
+      }, 'opt' + (subtitle === s.Index ? ' sel' : ''))),
+      action('Audio', () => $('pAudio').click()),
+      action('Sous-titres', () => $('pSubs').click())
+    ];
+    U.modal('Audio et sous-titres', items);
+  };
   $('pQuality').onclick = () => {
     if (item?.demo || item?.offline) return toast('La qualité est fixe pour ce fichier.');
-    choose('Qualité vidéo', [['Automatique', 0], ['1080p · 12 Mb/s', 12000000], ['1080p · 8 Mb/s', 8000000], ['720p · 4 Mb/s', 4000000], ['480p · 1,5 Mb/s', 1500000]], bitrate, async value => { const at = Math.max(desiredStart, position()); bitrate = value; await load(at, value > 0); });
+    choose('Qualité vidéo', [['Automatique (1080p / 4K)', 0], ['4K UHD · 20 Mb/s', 20000000], ['1080p · 12 Mb/s', 12000000], ['1080p · 8 Mb/s', 8000000], ['720p · 4 Mb/s', 4000000], ['480p · 1,5 Mb/s', 1500000]], bitrate, async value => { const at = Math.max(desiredStart, position()); bitrate = value; await load(at, item?.stremio ? false : value > 0); });
   };
   $('pChapters').onclick = () => {
     const chapters = item?.Chapters || []; if (!chapters.length) return toast('Aucun chapitre disponible.');
@@ -302,7 +391,7 @@
   $('pPlay').onclick = event => { event.currentTarget.blur(); if (video.paused) run(playVideo); else video.pause(); };
   $('pRew').onclick = () => seek(position() - 10); $('pFwd').onclick = () => seek(position() + 10);
   $('pRetry').onclick = () => run(() => load(Math.max(desiredStart,position()), false));
-  $('pCompatible').onclick = () => run(() => load(Math.max(desiredStart,position()), true));
+  $('pCompatible').onclick = () => run(() => load(Math.max(desiredStart,position()), item?.stremio && !plan?.hasMore ? 'compatible' : true));
   $('pMute').onclick = () => { video.muted = !video.muted; };
   $('pVolume').oninput = () => { video.volume = Number($('pVolume').value); video.muted = video.volume === 0; };
   video.onvolumechange = () => { $('pVolume').value = video.muted ? 0 : video.volume; $('pMute').setAttribute('aria-label', video.muted ? 'Activer le son' : 'Couper le son'); $('pMute').classList.toggle('muted-volume', video.muted || video.volume === 0); };
@@ -337,14 +426,19 @@
     if(video.buffered.length && length) $('pBuf').style.width=Math.min(100,(video.buffered.end(video.buffered.length-1)+offset)/length*100)+'%';
   }
   video.ontimeupdate = updateTimeline;
-  video.onplay = () => { if (!item || switching) return; setState('playing'); };
+  video.onplay = () => { if (!item || switching) return; clearTimeout(bufferTimer); setState('playing'); };
   video.onplaying = () => {
-    if (!item || switching) return; clearTimeout(startupTimer); setState('playing');
+    if (!item || switching) return; clearTimeout(startupTimer); clearTimeout(bufferTimer); setState('playing');
     video.dataset.playingFrame = 'true';
     if (!started) { started = true; report(''); }
   };
-  video.onpause = () => { if (item && !switching && !['loading','error'].includes(state)) { setState('paused'); report(); } };
-  video.onwaiting = () => { if (item && !switching && state === 'playing') setState('buffering'); };
+  video.onpause = () => { if (item && !switching && !['loading','error'].includes(state)) { clearTimeout(bufferTimer); setState('paused'); report(); } };
+  video.onwaiting = () => {
+    if (item && !switching && state === 'playing') {
+      clearTimeout(bufferTimer);
+      bufferTimer = setTimeout(() => { if (item && !switching && state === 'playing') setState('buffering'); }, 1500);
+    }
+  };
   video.onended = () => { report('Stopped'); setState('paused'); if (next) toast('Épisode terminé. Utilisez Épisode suivant pour continuer.'); };
   video.onerror = () => { if (item && !switching) recover('Le navigateur ne peut pas lire le flux reçu. Essayez la qualité compatible ou une autre qualité vidéo.'); };
   document.addEventListener('keydown', event => {

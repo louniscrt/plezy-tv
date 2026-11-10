@@ -61,6 +61,7 @@ class PlayerActivity : AppCompatActivity() {
     private var stremioStreams: List<StremioEngine.Stream> = emptyList()
     private var stremioKey: String? = null
     private var stremioIndex = 0
+    private var stremioHlsFallback = false
 
     private var selectedBitrate: Int? = null
     private var selectedAudioIndex: Int? = null
@@ -170,6 +171,11 @@ class PlayerActivity : AppCompatActivity() {
             mediaItem.title
         }
         tvPlayerSubtitle.text = mediaItem.subtitle
+        chapterProgressBar.progressFraction = 0f
+        chapterProgressBar.setChapterFractions(emptyList())
+        tvElapsedTime.text = "00:00"
+        tvRemainingTime.text = "-00:00"
+        tvEndsAt.text = ""
 
         val isDirectPlay = selectedBitrate == null &&
                 CodecDetector.canDirectPlay(mediaItem.videoCodec, mediaItem.videoWidth) &&
@@ -251,18 +257,20 @@ class PlayerActivity : AppCompatActivity() {
             dialogOpen = true
             uiHandler.removeCallbacks(hideOverlayRunnable)
             val options = arrayOf(
-                "Automatique (selon compatibilité)",
+                "Automatique (4K / 1080p Direct)",
+                "4K UHD · 20 Mbps",
+                "1080p · 12 Mbps (H.264)",
                 "1080p · 8 Mbps (H.264)",
-                "720p · 4 Mbps (H.264)",
-                "480p · 1.5 Mbps"
+                "720p · 4 Mbps (H.264)"
             )
             AlertDialog.Builder(this)
                 .setTitle("Qualité Vidéo")
                 .setItems(options) { _, which ->
                     selectedBitrate = when (which) {
-                        1 -> 8_000_000
-                        2 -> 4_000_000
-                        3 -> 1_500_000
+                        1 -> 20_000_000
+                        2 -> 12_000_000
+                        3 -> 8_000_000
+                        4 -> 4_000_000
                         else -> null
                     }
                     reloadStreamPreservingPosition()
@@ -377,8 +385,11 @@ class PlayerActivity : AppCompatActivity() {
             } else false
         }
         chapterProgressBar.setOnFocusChangeListener { _, _ -> chapterProgressBar.invalidate() }
-        btnPlayPause.nextFocusUpId = R.id.chapterProgressBar
+        val bottomButtons = listOf(btnPrev, btnReplay10, btnPlayPause, btnForward10, btnNext, btnQuality, btnSubtitles, btnAirPlay, btnAspect, btnChapters)
+        bottomButtons.forEach { it.nextFocusUpId = R.id.chapterProgressBar }
         chapterProgressBar.nextFocusDownId = R.id.btnPlayPause
+        chapterProgressBar.nextFocusUpId = R.id.btnPlayerBack
+        btnBack.nextFocusDownId = R.id.chapterProgressBar
         btnPlayPause.requestFocus()
         showOverlayAndScheduleHide()
     }
@@ -447,6 +458,7 @@ class PlayerActivity : AppCompatActivity() {
                         stremioStreams = jellyfinClient.playbackStreams(selectedItem)
                         stremioKey = selectedItem.id
                         stremioIndex = 0
+                        stremioHlsFallback = false
                     }
                     if (player !== exo || mediaItem.id != selectedItem.id) return@launch
                     val stream = stremioStreams.getOrNull(stremioIndex)
@@ -456,11 +468,35 @@ class PlayerActivity : AppCompatActivity() {
                         return@launch
                     }
                     jellyfinClient.stremio.remember(selectedItem)
-                    tvStreamModeBadge.text = "Qualité originale"
-                    findViewById<View>(R.id.btnQuality).isEnabled = false
+                    val chosenAudio = selectedItem.audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                    val wantEn = chosenAudio?.language?.startsWith("en", ignoreCase = true) == true || selectedAudioIndex == 1
+                    val langCode = if (wantEn) "en" else "fr"
+                    val chosenSub = selectedItem.subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex }
+                    val subDisabled = selectedSubtitleIndex == null || selectedSubtitleIndex!! < 0 || chosenSub?.language == "off"
+                    val subLang = chosenSub?.language?.takeIf { it != "off" } ?: "fr"
+                    exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                        .setPreferredAudioLanguage(langCode)
+                        .setPreferredTextLanguage(subLang)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subDisabled)
+                        .build()
+                    tvStreamModeBadge.text = if (stremioHlsFallback) {
+                        if (wantEn) "HLS 1080p/4K · Audio EN" else "HLS 1080p/4K · Audio FR (Principal)"
+                    } else {
+                        if (wantEn) "Direct Play 4K/1080p · Audio EN" else "Direct Play 4K/1080p · Audio FR (Principal)"
+                    }
+                    findViewById<View>(R.id.btnQuality).isEnabled = true
+                    findViewById<View>(R.id.btnSubtitles).isEnabled = true
+                    val resolvedUrl = if (!stremioHlsFallback && stream.url.contains("/api/stremio/hls/") && stream.url.contains("/master.m3u8")) {
+                        stream.url.substringBefore("?").replace("/api/stremio/hls/", "/api/stremio/media/").removeSuffix("/master.m3u8")
+                    } else if (wantEn && stream.url.contains("/api/stremio/hls/")) {
+                        val base = stream.url.substringBefore("?")
+                        "$base?lang=en&fallback=1"
+                    } else {
+                        stream.url
+                    }
                     val http = DefaultHttpDataSource.Factory().setDefaultRequestProperties(stream.headers)
                     val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlayerActivity, http))
-                    exo.setMediaSource(factory.createMediaSource(ExoMediaItem.fromUri(stream.url)), position)
+                    exo.setMediaSource(factory.createMediaSource(ExoMediaItem.fromUri(resolvedUrl)), position)
                     exo.prepare(); exo.playWhenReady = playing
                     showOverlayAndScheduleHide()
                 } catch (error: Exception) {
@@ -497,8 +533,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun initializeExoPlayer() {
         if (player != null || !::mediaItem.isInitialized) return
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(5_000, 15_000, 1_500, 3_000)
-            .setTargetBufferBytes(12 * 1024 * 1024)
+            .setBufferDurationsMs(10_000, 30_000, 1_000, 2_000)
+            .setTargetBufferBytes(20 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false).build()
         val exo = ExoPlayer.Builder(this).setLoadControl(loadControl).build()
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setPreferredAudioLanguage("fr").build()
@@ -527,8 +563,12 @@ class PlayerActivity : AppCompatActivity() {
             override fun onPlayerError(error: PlaybackException) {
                 findViewById<View>(R.id.playerBuffering).visibility = View.GONE
                 if (StremioClient.owns(mediaItem.id)) {
-                    if (stremioIndex + 1 < stremioStreams.size) {
+                    if (!stremioHlsFallback) {
+                        stremioHlsFallback = true
+                        setStream(exo, exo.currentPosition.coerceAtLeast(0L), exo.playWhenReady)
+                    } else if (stremioIndex + 1 < stremioStreams.size) {
                         stremioIndex++
+                        stremioHlsFallback = false
                         setStream(exo, exo.currentPosition.coerceAtLeast(0L), exo.playWhenReady)
                     } else {
                         Toast.makeText(this@PlayerActivity, "Les liens proposés ne sont pas lisibles sur cet appareil.", Toast.LENGTH_LONG).show()

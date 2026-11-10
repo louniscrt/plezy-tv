@@ -27,18 +27,65 @@
   async function negotiate(item, { force = false, start = 0, audio, subtitle = -1, bitrate = 0, mp4 = true, webm = true, signal } = {}) {
     if (item.stremio) {
       const result = await A.stremio('streams', { id: item.Id }, signal);
-      const index = force === 'seek' ? (stremioIndices.get(item.Id) || 0) : force ? (stremioIndices.get(item.Id) || 0) + 1 : 0;
+      const wantEnglish = audio === 2;
+      const primary = result.streams || [];
+      const fallback = (result.fallbackStreams || []).map(s => ({ ...s, fallback: true }));
+      const english = (result.englishStreams || []).map(s => ({ ...s, lang: 'en', fallback: true }));
+      const prevIndex = stremioIndices.get(item.Id) || 0;
+      const currentStream = primary[prevIndex] || primary[0];
+      const candidates = wantEnglish
+        ? [...(currentStream ? [{ ...currentStream, lang: 'en', fallback: true }] : []), ...english.filter(s => s.url !== currentStream?.url), ...primary.filter(s => s.url !== currentStream?.url).map(s => ({ ...s, lang: 'en', fallback: true }))]
+        : [...primary, ...fallback];
+      const index = force === 'seek'
+        ? prevIndex
+        : force === 'compatible'
+          ? 0
+          : force
+            ? prevIndex + 1
+            : 0;
       stremioIndices.set(item.Id, index);
       if (stremioIndices.size > 200) stremioIndices.delete(stremioIndices.keys().next().value);
-      const chosen = result.streams[index];
+      const chosen = candidates[index];
       if (!chosen) throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
-      const response = await fetch(chosen.url + '?probe=1', { signal });
+      const useFallback = Boolean(chosen.fallback || force === 'compatible' || wantEnglish);
+      const probeParts = ['probe=1', ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
+      let response = await fetch(`${chosen.url}?${probeParts.join('&')}`, { signal });
+      let forcedCompatible = false;
       if (!response.ok) {
-        if (index + 1 < result.streams.length) return negotiate(item, { force: true, start, signal });
-        throw new Error('Aucune piste française lisible disponible. Utilisez Télécharger via Seerr dans Plus d’options.');
+        if (index + 1 < candidates.length) return negotiate(item, { force: true, start, audio, subtitle, bitrate, mp4, webm, signal });
+        if (!useFallback) {
+          response = await fetch(`${chosen.url}?${[...probeParts, 'fallback=1'].join('&')}`, { signal });
+          forcedCompatible = response.ok;
+        }
+        if (!response.ok) throw new Error('Aucune piste française lisible disponible. Utilisez Télécharger via Seerr dans Plus d’options.');
       }
       const info = await response.json();
-      return { url: chosen.url.replace('/media/', '/hls/') + '/master.m3u8', hls: true, duration: info.duration, hasMore: index + 1 < result.streams.length, method: 'DirectPlay', offset: 0, source: { Id: item.Id, MediaStreams: [] } };
+      if (wantEnglish && info && info.hasEnglishAudio === false && index === 0 && candidates.length > 1) {
+        return negotiate(item, { force: true, start, audio, subtitle, bitrate, mp4, webm, signal });
+      }
+      const hlsParts = [...(wantEnglish ? ['lang=en'] : []), ...(useFallback || forcedCompatible ? ['fallback=1'] : [])];
+      const hlsQuery = hlsParts.length ? `?${hlsParts.join('&')}` : '';
+      const subStreams = (result.subtitles || []).map(s => ({
+        Type: 'Subtitle',
+        Index: s.index,
+        Language: s.language || s.lang,
+        DisplayTitle: s.label,
+        DeliveryUrl: s.url
+      }));
+      const mediaStreams = [
+        { Type: 'Audio', Index: 1, Language: 'fra', DisplayTitle: 'Français (Principal)', IsDefault: true },
+        { Type: 'Audio', Index: 2, Language: 'eng', DisplayTitle: 'Anglais', IsDefault: false },
+        ...subStreams
+      ];
+      return {
+        url: chosen.url.replace('/media/', '/hls/') + '/master.m3u8' + hlsQuery,
+        hls: true,
+        duration: info.duration,
+        hasMore: index + 1 < candidates.length,
+        method: 'DirectPlay',
+        offset: 0,
+        source: { Id: item.Id, DefaultAudioStreamIndex: 1, MediaStreams: mediaStreams }
+      };
     }
     const direct = !force && !bitrate && audio === undefined && subtitle < 0;
     const response = await A.jf(`/Items/${item.Id}/PlaybackInfo`, {

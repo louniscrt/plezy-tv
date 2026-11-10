@@ -68,6 +68,9 @@ class StremioEngineTest {
         for (name in accepted) assertTrue(name, StremioEngine.isFrenchStream(stream(name)))
         for (name in rejected) assertFalse(name, StremioEngine.isFrenchStream(stream(name)))
         assertTrue(StremioEngine.isFrenchStream(JsonParser.parseString("""{"title":"Audio 🇫🇷"}""").asJsonObject))
+        assertTrue(StremioEngine.isEnglishStream(stream("Film.MULTI.1080p.mkv")))
+        assertTrue(StremioEngine.isMultiStream(stream("Film.MULTI.1080p.mkv")))
+        assertTrue(StremioEngine.streamPriority("Film.1080p.WEB-DL.x264.mkv") > StremioEngine.streamPriority("Film.1080p.Bluray.Remux.mkv"))
     }
     @Test fun privateBackendSuppliesFrenchMetadataAndOnlyRequestsDownloadsExplicitly() = runBlocking {
         val server = MockWebServer(); server.start()

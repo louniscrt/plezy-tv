@@ -4,6 +4,7 @@ const {chooseAudio,encoderArguments}=require('../stremio-media');
 test('French audio is selected even when English is the first default track',()=>{
  const streams=[{index:0,codec_type:'video',codec_name:'h264',width:1920,pix_fmt:'yuv420p'},{index:1,codec_type:'audio',tags:{language:'eng'}},{index:2,codec_type:'audio',tags:{language:'fra'}}];
  assert.equal(chooseAudio(streams).index,2);
+ assert.equal(chooseAudio(streams,{lang:'en'}).index,1);
  const args=encoderArguments({streams},'http://127.0.0.1/media',60);assert.ok(args.includes('0:2'));assert.ok(args.includes('copy'));assert.ok(args.includes('aac'));assert.ok(args.includes('60'));assert.ok(!args.includes('0:1'));
 });
 test('Known English-only and ambiguous multiple audio tracks never become a French stream',()=>{

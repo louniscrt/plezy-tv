@@ -99,6 +99,10 @@ test('French-only streams reject ambiguous MULTI, VOSTFR and titles containing F
  assert.equal(isFrenchStream({title:'Audio 🇫🇷'}),true);
  const engine=createStremio({config:{frenchOnly:true,metadataManifest:false,addons:['https://fixture.test/manifest.json']},fetchJSON:async url=>url.endsWith('manifest.json')?{types:['movie'],resources:['stream']}:{streams:[{url:'https://cdn.test/fr',title:'🇫🇷'},{url:'https://cdn.test/unknown',title:'MULTI'},{url:'https://cdn.test/en',title:'English'}]}});
  const streams=await engine.streams(encodeId('movie','tt123'));assert.equal(streams.length,1);assert.equal(streams[0].url,'https://cdn.test/fr');
+ const variants=await engine.streams(encodeId('movie','tt123'),{includeVariants:true});
+ assert.equal(variants.streams[0].url,'https://cdn.test/fr');
+ assert.ok(variants.englishStreams.some(s=>s.url==='https://cdn.test/en'));
+ assert.ok(variants.fallbackStreams.some(s=>s.url==='https://cdn.test/unknown'));
 });
 test('French metadata uses the configured Seerr binding without exposing its credentials',async()=>{
  let called=false;

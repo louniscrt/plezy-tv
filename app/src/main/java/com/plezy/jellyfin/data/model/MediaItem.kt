@@ -45,9 +45,16 @@ data class MediaItem(
     val audioCodec: String? = null,
     val videoCodec: String? = null,
     val videoWidth: Int? = null,
-    val audioFormatLabel: String = "",
-    val audioTracks: List<MediaTrack> = emptyList(),
-    val subtitleTracks: List<MediaTrack> = listOf(MediaTrack(-1, "Désactivés", "off", true)),
+    val audioFormatLabel: String = "FR (Principal) · EN",
+    val audioTracks: List<MediaTrack> = listOf(
+        MediaTrack(0, "Français (Principal)", "fr", true),
+        MediaTrack(1, "Anglais", "en", false)
+    ),
+    val subtitleTracks: List<MediaTrack> = listOf(
+        MediaTrack(-1, "Désactivés", "off", true),
+        MediaTrack(0, "Français", "fr", false),
+        MediaTrack(1, "Anglais", "en", false)
+    ),
     val chapters: List<ChapterInfo> = emptyList(),
     val primaryImageUrl: String? = null,
     val backdropImageUrl: String? = null,

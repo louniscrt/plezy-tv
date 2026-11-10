@@ -108,7 +108,12 @@
     const previous = history();
     const item = known.get(id) || previous.find(i => i.Id === id);
     if (item) {
-      const updated = { ...item, UserData: { ...item.UserData, ...change } };
+      const normalized = { ...change };
+      if (item.RunTimeTicks > 0 && normalized.PlaybackPositionTicks >= item.RunTimeTicks * 0.95) {
+        normalized.PlaybackPositionTicks = 0;
+        normalized.Played = true;
+      }
+      const updated = { ...item, UserData: { ...item.UserData, ...normalized } };
       known.set(id, updated);
       localStorage.setItem(historyKey(), JSON.stringify([updated, ...previous.filter(i => i.Id !== id)].slice(0, 200)));
     }
@@ -127,7 +132,10 @@
     if (route.startsWith('/Shows/') && isStremio(route.split('/')[2])) {
       const series = route.split('/')[2];
       const list = (await stremio('episodes', { id: series }, options.signal)).Items.map(remember);
-      if (route.endsWith('/Seasons')) return { Items: [...new Set(list.map(i => i.ParentIndexNumber))].map(n => ({ Id: series + '~season~' + n, IndexNumber: n, Name: 'Saison ' + n })) };
+      if (route.endsWith('/Seasons')) {
+        const nums = [...new Set(list.map(i => i.ParentIndexNumber))].sort((a, b) => (a === 0 ? 9999 : a) - (b === 0 ? 9999 : b));
+        return { Items: nums.map(n => ({ Id: series + '~season~' + n, IndexNumber: n, Name: n === 0 ? 'Épisodes spéciaux' : 'Saison ' + n })) };
+      }
       const season = p.SeasonId ? Number(p.SeasonId.split('~season~').at(-1)) : undefined;
       return { Items: list.filter(i => season === undefined || i.ParentIndexNumber === season) };
     }

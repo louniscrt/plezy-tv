@@ -77,7 +77,7 @@
   }
   function meta(item) {
     return [item.ProductionYear, item.CommunityRating ? '★ ' + Number(item.CommunityRating).toFixed(1) : '', item.OfficialRating,
-      item.Type === 'Series' ? 'Série' : item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 36000000000) + ' h ' + Math.round(item.RunTimeTicks / 600000000) % 60 + ' min' : 'Film', ...(item.Genres || []).slice(0, 2)].filter(Boolean).join(' · ');
+      item.Type === 'Series' ? 'Série' : item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 36000000000) + ' h ' + Math.round(item.RunTimeTicks / 600000000) % 60 + ' min' : 'Film', 'FR · EN', ...(item.Genres || []).slice(0, 2)].filter(Boolean).join(' · ');
   }
   function status(item) { const s = item.mediaInfo?.status; return s === 5 ? 'Disponible' : s === 4 ? 'Partiellement disponible' : requested.has(item.Id) || s === 2 || s === 3 ? 'Demandé' : 'À demander'; }
   function playLabel(item) { if (item.seerr && C.stremio) return item.Type === 'Series' ? 'Voir les épisodes' : 'Lecture'; return item.seerr ? status(item) === 'Disponible' || status(item) === 'Partiellement disponible' ? 'Voir dans Jellyfin' : status(item) === 'Demandé' ? 'Demande en cours' : 'Demander' : item.Type === 'Series' ? 'Voir les épisodes' : item.UserData?.PlaybackPositionTicks ? 'Reprendre' : 'Lecture'; }
@@ -144,7 +144,7 @@
     hero = item; $('billboard').classList.remove('hidden');
     backdrop('heroImg', item); text('bbTitle', item.Name); text('bbCat', item.Type === 'Series' || item.Type === 'Episode' ? 'S É R I E' : 'F I L M');
     text('bbMeta', meta(item)); text('bbOverview', item.Overview); text('bbPlayLbl', playLabel(item)); text('bbRating', item.OfficialRating);
-    text('bbCallout', C.demo ? 'Aperçu Plezy · catalogue de démonstration' : item.stremio || item.seerr && C.stremio ? 'Lecture directe · français' : item.seerr ? 'Découvrir avec Seerr' : 'Dans votre bibliothèque Jellyfin');
+    text('bbCallout', C.demo ? 'Aperçu Plezy · catalogue de démonstration' : item.stremio || item.seerr && C.stremio ? 'Lecture directe · Français (Principal) · Anglais' : item.seerr ? 'Découvrir avec Seerr · Français · Anglais' : 'Dans votre bibliothèque Jellyfin · Français · Anglais');
     const logo = A.image(item, 'Logo', 600); $('bbLogo').hidden = !logo;
     if (logo) { $('bbLogo').src = logo; $('bbLogo').onerror = () => $('bbLogo').hidden = true; }
   }
