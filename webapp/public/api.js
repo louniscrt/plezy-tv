@@ -174,9 +174,35 @@
       const result = await request(base, '/Users/AuthenticateByName', { method: 'POST', body: { Username: username.trim(), Pw: password }, auth: false });
       this.session(base, result);
     },
+    profiles() {
+      const profiles = read('plezy.web.profiles', []);
+      return Array.isArray(profiles) ? profiles.filter(p => p && typeof p.server === 'string' && typeof p.user === 'string' && typeof p.token === 'string' && p.token && p.user) : [];
+    },
+    rememberProfile() {
+      if (!config.token || !config.user || config.demo) return;
+      const profiles = this.profiles().filter(p => p.server !== config.server || p.user !== config.user);
+      profiles.push({ server: config.server, user: config.user, token: config.token, name: config.name });
+      localStorage.setItem('plezy.web.profiles', JSON.stringify(profiles));
+    },
+    async selectProfile(server, user) {
+      const selected = this.profiles().find(p => p.server === server && p.user === user);
+      if (!selected) throw new Error('Profil introuvable.');
+      const response = await fetch(proxy(endpoint(selected.server, '/Users/Me')), { headers: { Accept: 'application/json', Authorization: `MediaBrowser Client="Plezy Web", Device="Web Browser", DeviceId="${device}", Version="1.0.0", Token="${selected.token}"` }, signal: AbortSignal.timeout(15000), cache: 'no-store' });
+      if (!response.ok) throw new Error('Profil indisponible ou session expirée. Reconnectez ce compte.');
+      const account = await response.json();
+      if (account.Id !== selected.user) throw new Error('La session ne correspond pas à ce profil.');
+      this.rememberProfile();
+      Object.assign(config, selected, { demo: false, seerrKey: '', seerrCookie: '' });
+      known.clear(); save();
+    },
+    removeProfile(server, user) {
+      localStorage.setItem('plezy.web.profiles', JSON.stringify(this.profiles().filter(p => p.server !== server || p.user !== user)));
+    },
     session(server, result) {
       if (!result.AccessToken || !result.User?.Id) throw new Error('Session Jellyfin invalide.');
-      Object.assign(config, { server, token: result.AccessToken, user: result.User.Id, name: result.User.Name, demo: false }); save();
+      this.rememberProfile();
+      Object.assign(config, { server, token: result.AccessToken, user: result.User.Id, name: result.User.Name, demo: false, seerrKey: '', seerrCookie: '' });
+      known.clear(); save(); this.rememberProfile();
     },
     logout() { Object.assign(config, { token: '', user: '', name: '', demo: false, seerrKey: '', seerrCookie: '' }); save(); },
     async details(item) { if (item.seerr && stremioEnabled) return remember((await stremio('resolve', { tmdbId: item.id, type: item.Type === 'Series' ? 'series' : 'movie' })).item); if (item.stremio && !item.offline) return item.Type === 'Episode' ? remember(item) : remember(await stremio('meta', { id: item.Id })); return item.demo || item.offline ? item : item.seerr ? fromSeerr(await seerr(`${item.Type === 'Series' ? 'tv' : 'movie'}/${item.id}`, { params: { language: 'fr' } }), item.Type === 'Series' ? 'tv' : 'movie') : jf(`/Users/${config.user}/Items/${item.Id}`); },

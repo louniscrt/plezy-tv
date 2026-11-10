@@ -376,7 +376,58 @@
   $('inPass').onkeydown = e => { if (e.key === 'Enter') login(); };
   $('btnDemo').onclick = () => { ++qcVersion; C.demo = true; C.name = 'Démo'; A.save(); run(boot); };
   $('btnSettings').onclick = settings;
-  $('btnProfile').onclick = () => modal('Profil de ' + C.name, [el('p', 'muted', 'Votre progression et vos favoris sont synchronisés avec votre compte Jellyfin. Votre liste Plezy est conservée sur cet appareil.'), action('Changer de profil', logout), action('Réglages', settings)]);
+  function chooseProfile(manage = false) {
+    const grid = el('div', 'profile-grid');
+    for (const profile of A.profiles()) {
+      const button = action('', async () => {
+        if (manage) { A.removeProfile(profile.server, profile.user); chooseProfile(true); return; }
+        ++qcVersion; ++pageVersion; ++detailVersion; ++searchVersion;
+        requested.clear();
+        for (const controller of window.PlezyOffline.pending.values()) controller.abort();
+        await A.selectProfile(profile.server, profile.user);
+        closeModal(); await boot();
+      }, 'profile-tile');
+      button.append(el('span', 'profile-avatar', (profile.name || 'P').slice(0, 1).toUpperCase()), el('span', '', (manage ? 'Retirer ' : '') + (profile.name || 'Profil')));
+      if (!manage && profile.server === C.server && profile.user === C.user) button.setAttribute('aria-current', 'true');
+      grid.append(button);
+    }
+    const addProfile = action('...', connectAnotherProfile, 'profile-add');
+    addProfile.title = 'Connecter un autre profil';
+    addProfile.setAttribute('aria-label', 'Connecter un autre profil');
+    const extra = el('div', 'profile-extra');
+    extra.append(addProfile, el('span', 'muted', 'Connecter un autre profil'));
+    modal('Qui est-ce ?', [grid, extra, el('p', 'muted', 'Les comptes connectés sont mémorisés sur cet appareil. Choisir un profil donne accès à sa session ; ceci ne remplace pas un verrouillage par mot de passe.'), action(manage ? 'Terminer' : 'Gérer les profils', () => chooseProfile(!manage)), action('Réglages', settings)]);
+  }
+  function connectAnotherProfile() {
+    A.rememberProfile();
+    const server = field('Serveur Jellyfin', C.server || '', 'url');
+    const username = field('Nom d’utilisateur', '', 'text');
+    const password = field('Mot de passe', '', 'password');
+    const status = el('p', 'muted', 'Les profils déjà connectés restent enregistrés sur cet appareil.');
+    let connecting = false;
+    const connect = action('Connecter ce profil', async () => {
+      if (connecting) return;
+      connecting = true; connect.disabled = true;
+      try {
+        const base = A.normalize(server.input.value);
+        const result = await A.request(base, '/Users/AuthenticateByName', { method: 'POST', body: { Username: username.input.value.trim(), Pw: password.input.value }, auth: false });
+        password.input.value = '';
+        if (!connect.isConnected || $('modal').hidden) return;
+        A.session(base, result);
+        ++qcVersion; ++pageVersion; ++detailVersion; ++searchVersion;
+        requested.clear();
+        for (const controller of window.PlezyOffline.pending.values()) controller.abort();
+        closeModal(); await boot();
+      } catch (error) { status.textContent = error.message; }
+      finally { connecting = false; connect.disabled = false; }
+    }, 'btn btn-white');
+    modal('Connecter un autre profil', [server.node, username.node, password.node, status, connect, action('Retour aux profils', () => { password.input.value = ''; chooseProfile(); })]);
+  }
+  function profileMenu() {
+    A.rememberProfile();
+    modal('Profil de ' + (C.name || 'Utilisateur'), [action('Changer de profil', () => chooseProfile()), action('Réglages', settings), action('Fermer', closeModal)]);
+  }
+  $('btnProfile').onclick = profileMenu;
   $('bbInfo').onclick = () => hero && run(() => openDetail(hero)); $('bbPlay').onclick = () => hero && run(() => play(hero));
   $('dPlay').onclick = () => detail && run(() => detail.Type === 'Series' && !detail.seerr && primaryEpisode ? window.PlezyPlayer.start(primaryEpisode,primaryEpisodeQueue) : play(detail),$('dPlay'));
   $('dSave').onclick = () => { updateSaved(detail); detailButtons(detail); };
@@ -385,6 +436,11 @@
   $('dMore').onclick = () => {
     const selected = detail, options = [action(isSaved(selected) ? 'Retirer de ma liste' : 'Ajouter à ma liste', () => { updateSaved(selected); detailButtons(selected); closeModal(); })];
     if (!selected.demo && !selected.offline && C.stremio) options.push(action('Télécharger via Seerr', () => { closeModal(); return requestTitle(selected); }));
+    if (!selected.demo && !selected.seerr) options.push(action('Retirer de « Reprendre la lecture »', async () => {
+      window.PlezyResume.remove(A, selected);
+      closeModal(); await navigate(page);
+      toast('Retiré de Reprendre la lecture sur cet appareil. Le programme reste dans votre bibliothèque.');
+    }));
     if (!selected.seerr) {
       if (!selected.offline) options.push(action(selected.UserData?.Played ? 'Marquer comme non vu' : 'Marquer comme vu',async()=>{await toggleUserData('Played','PlayedItems');closeModal();}));
       options.push(action('Recommencer depuis le début',()=>{closeModal();const target=selected.Type==='Series' ? primaryEpisode : selected;if(target)return window.PlezyPlayer.start({...target,UserData:{...target.UserData,PlaybackPositionTicks:0}},selected.Type==='Series'?primaryEpisodeQueue:episodes);}));
@@ -428,6 +484,18 @@
     $('btnLogin').disabled = $('btnQc').disabled = true;
     const link = el('a', 'btn btn-white', 'Ouvrir Plezy Web'); link.href = 'http://localhost:8090';
     $('loginError').after(link);
-  } else { A.initStremio().then(enabled => { C.stremio = enabled; if (enabled) C.demo = false; if (C.token && C.user || C.demo || enabled) run(boot); }); }
+  } else {
+    A.rememberProfile();
+    const profilesButton = action('Choisir un profil mémorisé', () => chooseProfile(), 'btn');
+    profilesButton.hidden = !A.profiles().length;
+    $('loginError').after(profilesButton);
+    A.initStremio().then(enabled => {
+      C.stremio = enabled; if (enabled) C.demo = false;
+      if (C.token && C.user || C.demo || enabled) run(async () => {
+        await boot();
+        if (A.profiles().length > 1) chooseProfile();
+      });
+    });
+  }
   if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();

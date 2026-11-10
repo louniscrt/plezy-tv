@@ -10,6 +10,7 @@
   const action = (label, callback, cls = 'opt') => { const b = el('button', cls, label); b.onclick = () => run(callback, b); return b; };
   let page = 'HOME', screen = 'login', hero, detail, episodes = [], pageVersion = 0, detailVersion = 0, searchVersion = 0, qcVersion = 0, lastFocus;
   let heroTimer;
+  let profileRequired = false;
   const pagePositions = new Map();
   let playerPosition;
   const rememberPage = () => pagePositions.set(page, window.PlezyNavigation.capture($('screen-main'), $('mainScroll'), document.activeElement));
@@ -37,6 +38,7 @@
     finally { if (button?.isConnected) button.disabled = false; }
   }
   function show(next, record = true) {
+    if (profileRequired && next !== 'login') { chooseProfile(); return; }
     const focused = document.activeElement;
     const previous = screen;
     if (next !== screen && screen === 'main') rememberPage();
@@ -50,11 +52,11 @@
       if (next === 'detail' && previous === 'player') window.PlezyNavigation.restore($('screen-detail'), $('detailScroll'), playerPosition);
     }
   }
-  function closeModal() { $('modal').hidden = true; if (lastFocus?.isConnected) lastFocus.focus(); }
+  function closeModal() { if (profileRequired) return; $('modal').hidden = true; if (lastFocus?.isConnected) lastFocus.focus(); }
   function modal(title, children) {
     if ($('modal').hidden) lastFocus = document.activeElement;
     const h = el('h3', '', title); h.id = 'modalTitle';
-    $('modalCard').replaceChildren(h, ...children, action('Fermer', closeModal, 'btn btn-ghost'));
+    $('modalCard').replaceChildren(h, ...children, ...(profileRequired ? [] : [action('Fermer', closeModal, 'btn btn-ghost')]));
     $('modal').hidden = false;
     $('modalCard').querySelector('input,button,select')?.focus();
   }
@@ -189,11 +191,15 @@
         $('rows').replaceChildren(); renderHero(data[0][0]);
         ['Top 10 des tendances aujourd’hui', 'Films populaires', 'Séries populaires', 'Prochainement au cinéma'].forEach((t, i) => row(t, i === 0 ? data[i].slice(0, 10) : data[i], i === 0)); return;
       }
-      const data = await catalog();
+      // Independent requests run together; rendering and row order remain unchanged.
+      const [data, alphabetical] = await Promise.all([
+        catalog(),
+        next !== 'HOME' && !C.demo ? A.items({ IncludeItemTypes: next === 'SERIES' ? 'Series' : 'Movie', SortBy: 'SortName', SortOrder: 'Ascending', Limit: 100 }) : Promise.resolve(null)
+      ]);
       if (version !== pageVersion) return;
       $('rows').replaceChildren();
       const recent = next === 'SERIES' ? data.shows : next === 'MOVIES' ? data.movies : [...data.movies, ...data.shows];
-      const all = next !== 'HOME' && !C.demo ? await A.items({ IncludeItemTypes: next === 'SERIES' ? 'Series' : 'Movie', SortBy: 'SortName', SortOrder: 'Ascending', Limit: 100 }) : recent;
+      const all = alphabetical || recent;
       if (version !== pageVersion) return;
       const resume = data.resume.filter(i => next === 'HOME' || (next === 'SERIES' ? i.Type !== 'Movie' : i.Type === 'Movie'));
       renderHero(resume[0] || recent[0] || all[0]);
@@ -419,7 +425,7 @@
     } catch (error) { if (version === qcVersion) text('qcStatus', error.message); }
     finally { $('btnQc').disabled = false; }
   }
-  async function boot() { text('btnProfile', (C.name || 'P').slice(0, 1).toUpperCase()); $('btnProfile').title = 'Profil de ' + C.name; await navigate('HOME'); }
+  async function boot() { profileRequired = false; closeModal(); text('btnProfile', (C.name || 'P').slice(0, 1).toUpperCase()); $('btnProfile').title = 'Profil de ' + C.name; await navigate('HOME'); }
   function back() {
     if (!$('modal').hidden) { closeModal(); return; }
     if (screen === 'player') { window.PlezyPlayer.stop(); return; }
@@ -433,7 +439,58 @@
   $('inPass').onkeydown = e => { if (e.key === 'Enter') login(); };
   $('btnDemo').onclick = () => { ++qcVersion; C.demo = true; C.name = 'Démo'; A.save(); run(boot); };
   $('btnSettings').onclick = settings;
-  $('btnProfile').onclick = () => modal('Profil de ' + C.name, [el('p', 'muted', 'Votre progression et vos favoris sont synchronisés avec votre compte Jellyfin. Votre liste Plezy est conservée sur cet appareil.'), action('Changer de profil', logout), action('Réglages', settings)]);
+  function chooseProfile(manage = false) {
+    const grid = el('div', 'profile-grid');
+    for (const profile of A.profiles()) {
+      const button = action('', async () => {
+        if (manage) { A.removeProfile(profile.server, profile.user); chooseProfile(true); return; }
+        ++qcVersion; ++pageVersion; ++detailVersion; ++searchVersion;
+        requested.clear();
+        for (const controller of window.PlezyOffline.pending.values()) controller.abort();
+        await A.selectProfile(profile.server, profile.user);
+        closeModal(); await boot();
+      }, 'profile-tile');
+      button.append(el('span', 'profile-avatar', (profile.name || 'P').slice(0, 1).toUpperCase()), el('span', '', (manage ? 'Retirer ' : '') + (profile.name || 'Profil')));
+      if (!manage && profile.server === C.server && profile.user === C.user) button.setAttribute('aria-current', 'true');
+      grid.append(button);
+    }
+    const addProfile = action('...', connectAnotherProfile, 'profile-add');
+    addProfile.title = 'Connecter un autre profil';
+    addProfile.setAttribute('aria-label', 'Connecter un autre profil');
+    const extra = el('div', 'profile-extra');
+    extra.append(addProfile, el('span', 'muted', 'Connecter un autre profil'));
+    modal('Qui est-ce ?', [grid, extra, el('p', 'muted', 'Comptes mémorisés sur cet appareil : chaque profil donne accès à une session déjà authentifiée.'), action(manage ? 'Terminer' : 'Gérer les profils', () => chooseProfile(!manage)), action('Réglages', settings)]);
+  }
+  function connectAnotherProfile() {
+    A.rememberProfile();
+    const server = field('Serveur Jellyfin', C.server || '', 'url');
+    const username = field('Nom d’utilisateur', '', 'text');
+    const password = field('Mot de passe', '', 'password');
+    const status = el('p', 'muted', 'Les profils déjà connectés restent enregistrés sur cet appareil.');
+    let connecting = false;
+    const connect = action('Connecter ce profil', async () => {
+      if (connecting) return;
+      connecting = true; connect.disabled = true;
+      try {
+        const base = A.normalize(server.input.value);
+        const result = await A.request(base, '/Users/AuthenticateByName', { method: 'POST', body: { Username: username.input.value.trim(), Pw: password.input.value }, auth: false });
+        password.input.value = '';
+        if (!connect.isConnected || $('modal').hidden) return;
+        A.session(base, result);
+        ++qcVersion; ++pageVersion; ++detailVersion; ++searchVersion;
+        requested.clear();
+        for (const controller of window.PlezyOffline.pending.values()) controller.abort();
+        closeModal(); await boot();
+      } catch (error) { status.textContent = error.message; }
+      finally { connecting = false; connect.disabled = false; }
+    }, 'btn btn-white');
+    modal('Connecter un autre profil', [server.node, username.node, password.node, status, connect, action('Retour aux profils', () => { password.input.value = ''; chooseProfile(); })]);
+  }
+  function profileMenu() {
+    A.rememberProfile();
+    modal('Profil de ' + (C.name || 'Utilisateur'), [action('Changer de profil', () => chooseProfile()), action('Réglages', settings), action('Fermer', closeModal)]);
+  }
+  $('btnProfile').onclick = profileMenu;
   $('bbInfo').onclick = () => hero && run(() => openDetail(hero,{fromResume:hero.Type === 'Episode'})); $('bbPlay').onclick = () => hero && run(() => play(hero));
   $('dPlay').onclick = () => detail && run(() => detail.Type === 'Series' && !detail.seerr && primaryEpisode ? window.PlezyPlayer.start(primaryEpisode,primaryEpisodeQueue) : play(detail),$('dPlay'));
   $('dRestart').onclick = () => {
@@ -452,6 +509,11 @@
   $('dMore').onclick = () => {
     const selected = detail, options = [action(isSaved(selected) ? 'Retirer de ma liste' : 'Ajouter à ma liste', () => { updateSaved(selected); detailButtons(selected); closeModal(); })];
     if (!selected.demo && !selected.offline && C.stremio) options.push(action('Télécharger via Seerr', () => { closeModal(); return requestTitle(selected); }));
+    if (!selected.demo && !selected.seerr) options.push(action('Retirer de « Reprendre la lecture »', async () => {
+      await window.PlezyResume.resetAndRemove(A, selected, selected.Type === 'Series' ? primaryEpisode : selected);
+      closeModal(); await navigate(page);
+      toast('Retiré de Reprendre la lecture sur cet appareil. Le programme reste dans votre bibliothèque.');
+    }));
     if (!selected.seerr) {
       if (!selected.offline) options.push(action(selected.UserData?.Played ? 'Marquer comme non vu' : 'Marquer comme vu',async()=>{await toggleUserData('Played','PlayedItems');closeModal();}));
       options.push(action('Recommencer depuis le début',()=>{closeModal();const target=selected.Type==='Series' ? primaryEpisode : selected;if(target)return window.PlezyPlayer.start({...target,UserData:{...target.UserData,PlaybackPositionTicks:0}},selected.Type==='Series'?primaryEpisodeQueue:episodes);}));
@@ -486,7 +548,7 @@
       else if (!event.shiftKey && document.activeElement === focusable.at(-1)) { event.preventDefault(); focusable[0].focus(); }
     }
   });
-  window.onpopstate = () => { if (screen === 'player') window.PlezyPlayer.stop(false); else if (screen === 'detail') { ++detailVersion; show('main', false); } else if (!C.token && !C.demo && !C.stremio) show('login', false); else run(() => navigate('HOME')); };
+  window.onpopstate = () => { if (profileRequired) { show('login', false); chooseProfile(); return; } if (screen === 'player') window.PlezyPlayer.stop(false); else if (screen === 'detail') { ++detailVersion; show('main', false); } else if (!C.token && !C.demo && !C.stremio) show('login', false); else run(() => navigate('HOME')); };
   $('inServer').value = C.server || 'http://192.168.0.89:8096'; history.replaceState({ screen: 'login' }, '', screenUrl('login'));
   show('login', false);
   if (location.protocol === 'file:') {
@@ -495,6 +557,17 @@
     $('btnLogin').disabled = $('btnQc').disabled = true;
     const link = el('a', 'btn btn-white', 'Ouvrir Plezy Web'); link.href = 'http://localhost:8090';
     $('loginError').after(link);
-  } else { A.initStremio().then(enabled => { C.stremio = enabled; if (enabled) C.demo = false; if (C.token && C.user || C.demo || enabled) run(boot); }); }
+  } else {
+    A.rememberProfile();
+    profileRequired = A.profiles().length > 0;
+    const profilesButton = action('Choisir un profil mémorisé', () => chooseProfile(), 'btn');
+    profilesButton.hidden = !A.profiles().length;
+    $('loginError').after(profilesButton);
+    A.initStremio().then(enabled => {
+      C.stremio = enabled; if (enabled) C.demo = false;
+      if (profileRequired) chooseProfile();
+      else if (C.token && C.user || C.demo || enabled) run(boot);
+    });
+  }
   if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();

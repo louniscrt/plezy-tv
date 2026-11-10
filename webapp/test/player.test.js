@@ -9,7 +9,7 @@ class Node {
  setAttribute(k,v){this.attributes[k]=v;}
  getAttribute(k){return this.attributes[k]??null;}
  removeAttribute(k){delete this.attributes[k];if(k==='src')this.src='';}
- blur(){} contains(){return false;} closest(){return null;}
+ blur(){} focus(){} contains(node){return node===this || this.children.some(child=>child.contains?.(node));} closest(){return null;}
 }
 function fixture(negotiate,variant='',options={}){
  const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
@@ -22,9 +22,10 @@ function fixture(negotiate,variant='',options={}){
  let currentScreen='detail';
  const ui={$,action:(label,callback)=>Object.assign(new Node(),{label,callback}),text:(id,v)=>$(id).textContent=v||'',toast(){},run:async fn=>fn(),el:()=>new Node(),show:s=>{currentScreen=s;},navigate(){},modal(){},closeModal(){},get screen(){return currentScreen;}};
  const api={config:{server:'http://server',token:'test',user:'u'},image:()=>'',device:'device',jf:async()=>({}),details:async item=>item,proxy:url=>'/proxy?url='+encodeURIComponent(url),endpoint:(base,route)=>base+route};
- const context={window:{PlezyAPI:api,PlezyUI:ui,PlezyPlayback:{negotiate},Hls:options.Hls,MutationObserver:Observer,addEventListener(){}},Hls:options.Hls,MutationObserver:Observer,document:{getElementById:$,querySelectorAll:()=>artwork,addEventListener(){},activeElement:null,fullscreenElement:null},console:{info(){},warn(){}},setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){},AbortController,AbortSignal,matchMedia:()=>({matches:false}),Date,URL};
+ const context={window:{PlezyAPI:api,PlezyUI:ui,PlezyPlayback:{negotiate},Hls:options.Hls,MutationObserver:Observer,addEventListener(){}},Hls:options.Hls,MutationObserver:Observer,document:{head:new Node(),getElementById:$,querySelectorAll:()=>artwork,addEventListener(){},activeElement:null,fullscreenElement:null},console:{info(){},warn(){}},setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){},AbortController,AbortSignal,matchMedia:()=>({matches:false}),Date,URL};
  const events=[];context.Event=Event;context.window.dispatchEvent=event=>events.push(event.type);
  if(options.jf)api.jf=options.jf;
+ if(options.resume)context.window.PlezyResume=options.resume;
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'player.js'),'utf8'),context);
  return {player:context.window.PlezyPlayer,video,$,ui,tick,artwork,events,document:context.document,setModal:hidden=>{$('modal').hidden=hidden;observers.get($('modal'))?.();}};
 }
@@ -134,4 +135,68 @@ test('leaving the player cancels a pending negotiation and ignores its late resp
  const loading=f.player.start({Id:'film',Name:'Film',MediaSources:[{Id:'s'}]});
  f.player.stop();resolve({url:'http://server/movie.mp4',hls:false,method:'DirectPlay',source:{Id:'s'}});await loading;
  assert.equal(f.ui.screen,'detail');assert.equal(f.video.src,'');assert.equal(f.video.paused,true);
+});
+
+
+test('Web and TV completion hides the finished item and refreshes after the stopped report',async()=>{
+ for(const variant of ['', 'tv/']){
+  const calls=[];let acknowledge;
+  const source={Id:'source'};
+  const f=fixture(async()=>({url:'http://server/movie.mp4',hls:false,method:'DirectPlay',source}),variant,{
+   resume:{restore:(A,item)=>calls.push('restore:'+item.Id),complete:(A,item)=>calls.push('complete:'+item.Id)},
+   jf:route=>route.endsWith('/Stopped')?new Promise(resolve=>acknowledge=resolve):Promise.resolve({})
+  });
+  await f.player.start({Id:'film',Name:'Film',MediaSources:[source]});await f.video.onloadedmetadata();
+  assert.ok(calls.includes('restore:film'));
+  f.video.onended();assert.ok(calls.includes('complete:film'));
+  assert.deepEqual(f.events,[]);
+  acknowledge({});await new Promise(setImmediate);
+  assert.ok(f.events.includes('plezy:playback-stopped'));
+ }
+});
+
+
+test('TV intro suggestion uses explicit boundaries and seeks to the intro end',async()=>{
+ const source={Id:'s'};
+ const f=fixture(async()=>({url:'http://server/movie.mp4',hls:false,method:'DirectPlay',source}),'tv/');
+ await f.player.start({Id:'ep',Name:'Episode',Type:'Episode',MediaSources:[source],MediaSegments:[{Type:'Intro',StartTicks:100000000,EndTicks:400000000}]});
+ await f.video.onloadedmetadata();
+ const prompts=f.$('screen-player').children.find(n=>n.attributes['aria-label']==='Suggestions de lecture');
+ const [skip]=prompts.children;
+ f.video.currentTime=5;f.video.ontimeupdate();assert.equal(skip.hidden,true);
+ f.video.currentTime=15;f.video.ontimeupdate();assert.equal(skip.hidden,false);assert.equal(prompts.hidden,false);
+ await skip.callback();assert.equal(f.video.currentTime,40);
+ f.video.ontimeupdate();assert.equal(skip.hidden,true);
+ f.player.stop();assert.equal(prompts.hidden,true);
+});
+
+test('TV does not guess an intro and offers the actual next episode near the end',async()=>{
+ const source={Id:'s'},episodes=[{Id:'one',Name:'One',Type:'Episode',MediaSources:[source]},{Id:'two',Name:'Two',Type:'Episode',MediaSources:[source]}];
+ const f=fixture(async()=>({url:'http://server/movie.mp4',hls:false,method:'DirectPlay',source}),'tv/');
+ await f.player.start(episodes[0],episodes);await f.video.onloadedmetadata();
+ const prompts=f.$('screen-player').children.find(n=>n.attributes['aria-label']==='Suggestions de lecture');
+ const [skip,next,dismiss]=prompts.children;
+ f.video.currentTime=20;f.video.ontimeupdate();assert.equal(skip.hidden,true);assert.equal(next.hidden,true);
+ f.video.currentTime=710;f.video.ontimeupdate();assert.equal(next.hidden,false);
+ await dismiss.callback();assert.equal(prompts.hidden,true);
+ f.video.ontimeupdate();assert.equal(next.hidden,true);
+ await f.player.start(episodes[0],episodes);await f.video.onloadedmetadata();
+ f.video.currentTime=710;f.video.ontimeupdate();await next.callback();
+ assert.equal(f.$('pTitle').textContent,'Two');
+ await f.video.onloadedmetadata();f.video.currentTime=710;f.video.ontimeupdate();assert.equal(next.hidden,true);
+ f.player.stop();
+});
+
+test('Web and TV show Netflix-style intro and next-episode popups; Real-Debrid episodes get a standard intro window',async()=>{
+ for(const variant of ['','tv/']){
+  const source={Id:'s'},episodes=[{Id:'one',Name:'One',Type:'Episode',stremio:true,MediaSources:[source]},{Id:'two',Name:'Two',Type:'Episode',IndexNumber:2,MediaSources:[source]}];
+  const f=fixture(async()=>({url:'http://server/movie.mp4',hls:false,method:'DirectPlay',source}),variant);
+  await f.player.start(episodes[0],episodes);await f.video.onloadedmetadata();
+  const prompts=f.$('screen-player').children.find(n=>n.attributes['aria-label']==='Suggestions de lecture');
+  const [skip,next]=prompts.children;
+  f.video.currentTime=1;f.video.ontimeupdate();assert.equal(skip.hidden,true);
+  f.video.currentTime=30;f.video.ontimeupdate();assert.equal(skip.hidden,false);
+  await skip.callback();assert.equal(f.video.currentTime,90);
+  f.video.currentTime=710;f.video.ontimeupdate();assert.equal(next.hidden,false);assert.match(next.textContent,/Épisode suivant/);
+ }
 });

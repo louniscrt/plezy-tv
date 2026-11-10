@@ -240,7 +240,7 @@ function createServer(options = {}) {
     if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end(); }
     fs.stat(file, (error, stat) => {
       if (error || !stat.isFile()) { res.writeHead(404, { 'Content-Type':'text/plain; charset=utf-8' }); return res.end('Fichier introuvable'); }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Content-Length':stat.size, 'Cache-Control': pathname.startsWith('/fonts/') || pathname.startsWith('/vendor/') || pathname.startsWith('/art/') ? 'public, max-age=86400' : 'no-cache' });
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Content-Length':stat.size, 'Cache-Control': pathname.startsWith('/fonts/') || pathname.startsWith('/vendor/') || pathname.startsWith('/art/') ? 'public, max-age=86400' : 'no-cache, must-revalidate', ...(pathname.startsWith('/fonts/') || pathname.startsWith('/vendor/') || pathname.startsWith('/art/') ? {} : { 'CDN-Cache-Control': 'no-store', 'Cloudflare-CDN-Cache-Control': 'no-store' }) });
       if (req.method === 'HEAD') return res.end();
       const stream = fs.createReadStream(file); stream.on('error', () => res.destroy()); stream.pipe(res);
     });
