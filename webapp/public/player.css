@@ -2,8 +2,9 @@
 #screen-player{--player-pad:clamp(16px,2.5vw,52px);--player-accent:#e50914;color:#fff}
 #screen-player .player-ui{background:linear-gradient(180deg,#0009 0,transparent 20%,transparent 62%,#000e 100%);pointer-events:none}
 #screen-player[data-state="paused"] .player-ui{background:linear-gradient(90deg,#000c,#0005 80%),linear-gradient(0deg,#000c,transparent 45%)}
-#screen-player:has(.player-ui.hide){cursor:none}
+#screen-player:has(.player-ui.hide):not([data-state="paused"]):not([data-state="error"]){cursor:none}
 #screen-player .player-ui.hide *{pointer-events:none}
+#screen-player .tv-playback-prompts,#screen-player .playback-notice,#screen-player #pRecovery,#screen-player #modal,#screen-player #toast{pointer-events:auto;cursor:auto}
 #screen-player .p-top{position:absolute;inset:0 0 auto;display:flex;justify-content:space-between;padding:max(16px,env(safe-area-inset-top)) var(--player-pad);gap:16px}
 #screen-player .player-icon{position:relative;display:grid;place-items:center;width:48px;height:48px;min-height:44px;flex:none;padding:8px;color:white;border-radius:6px;background:none;transition:transform .15s,opacity .15s;pointer-events:auto}
 #screen-player .player-icon:hover{transform:scale(1.1);background:#ffffff12}

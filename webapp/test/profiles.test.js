@@ -42,6 +42,11 @@ test('expired or mismatched sessions do not activate another profile', async () 
   assert.equal(A.config.token, 'token-two');
   A.removeProfile('https://jellyfin.test', 'one');
   assert.equal(A.profiles().length, 1);
+  A.removeProfile('https://jellyfin.test', 'two');
+  assert.equal(A.profiles().length, 0);
+  assert.equal(A.config.user, '');
+  A.rememberProfile();
+  assert.equal(A.profiles().length, 0);
 });
 
 test('saved profiles survive reload, additional login and token renewal', async () => {

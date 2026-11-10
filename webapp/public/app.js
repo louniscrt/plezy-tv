@@ -425,7 +425,7 @@
   }
   function profileMenu() {
     A.rememberProfile();
-    modal('Profil de ' + (C.name || 'Utilisateur'), [action('Changer de profil', () => chooseProfile()), action('Réglages', settings), action('Fermer', closeModal)]);
+    modal(C.name ? 'Profil de ' + C.name : 'Profils', [action('Changer de profil', () => chooseProfile()), action('Réglages', settings), action('Fermer', closeModal)]);
   }
   $('btnProfile').onclick = profileMenu;
   $('bbInfo').onclick = () => hero && run(() => openDetail(hero)); $('bbPlay').onclick = () => hero && run(() => play(hero));

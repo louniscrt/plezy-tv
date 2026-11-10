@@ -49,7 +49,7 @@
       const chosen = candidates[index];
       if (!chosen) throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
       const useFallback = Boolean(chosen.fallback || force === 'compatible' || wantEnglish);
-      const probeParts = ['probe=1', ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
+      const probeParts = ['probe=1', ...(start > 0 ? [`start=${Math.floor(start)}`] : []), ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
       let response = await fetch(`${chosen.url}?${probeParts.join('&')}`, { signal });
       let forcedCompatible = false;
       if (!response.ok) {
@@ -64,6 +64,7 @@
       if (wantEnglish && info && info.hasEnglishAudio === false && index === 0 && candidates.length > 1) {
         return negotiate(item, { force: true, start, audio, subtitle, bitrate, mp4, webm, hevc, signal });
       }
+      if (Array.isArray(info?.chapters) && info.chapters.length && !item.Chapters?.length) item.Chapters = info.chapters;
       const hlsParts = [...(wantEnglish ? ['lang=en'] : []), ...(useFallback || forcedCompatible ? ['fallback=1'] : [])];
       const hlsQuery = hlsParts.length ? `?${hlsParts.join('&')}` : '';
       const subStreams = (result.subtitles || []).map(s => ({
@@ -82,6 +83,8 @@
         url: chosen.url.replace('/media/', '/hls/') + '/master.m3u8' + hlsQuery,
         hls: true,
         duration: info.duration,
+        chapters: info.chapters,
+        intro: info.intro,
         hasMore: index + 1 < candidates.length,
         method: 'DirectPlay',
         offset: 0,

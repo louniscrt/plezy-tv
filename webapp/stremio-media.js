@@ -96,11 +96,35 @@ function encoderArguments(info, source, start = 0, options = {}) {
     '-avoid_negative_ts','make_zero','-movflags','frag_keyframe+empty_moov+default_base_moof','-frag_duration','1000000','-f','mp4','pipe:1'];
 }
 
+function extractChapters(info) {
+  const raw = Array.isArray(info?.chapters) ? info.chapters : [];
+  if (!raw.length) return { chapters: [], intro: null };
+  const chapters = raw.map((c, idx) => {
+    const startSec = Number(c.start_time) || 0;
+    const endSec = Number(c.end_time) || 0;
+    const title = String(c.tags?.title || c.tags?.TITLE || `Chapitre ${idx + 1}`).trim();
+    return { Name: title, StartPositionTicks: Math.round(startSec * 10000000), start: startSec, end: endSec };
+  }).filter(c => Number.isFinite(c.start) && c.end > c.start);
+  let intro = null;
+  const named = chapters.find(c => c.start < 360 && (c.end - c.start) >= 12 && (c.end - c.start) <= 140 && /(intro|opening|\bop\b|g[eé]n[eé]rique|theme|cr[eé]dit)/i.test(c.Name) && !/(end|outro|closing|\bed\b)/i.test(c.Name));
+  if (named) {
+    intro = { start: Math.max(0, Math.floor(named.start)), end: Math.ceil(named.end) };
+  } else if (chapters.length >= 3 && (Number(info?.format?.duration) || 0) <= 5400) {
+    const candidate = chapters.find((c, i) => {
+      const len = c.end - c.start;
+      const next = chapters[i + 1];
+      return c.start <= 240 && len >= 25 && len <= 100 && next && (next.end - next.start) > 120;
+    });
+    if (candidate) intro = { start: Math.max(0, Math.floor(candidate.start)), end: Math.ceil(candidate.end) };
+  }
+  return { chapters: chapters.map(({ Name, StartPositionTicks }) => ({ Name, StartPositionTicks })), intro };
+}
+
 function rawProbe(source, identity = source) {
   const hit=probes.get(identity);if(hit && hit.until>Date.now())return hit.promise;
   if(probes.size>=256)probes.delete(probes.keys().next().value);
   const promise=new Promise((resolve,reject)=>{
-    const child=spawn('ffprobe',['-v','error','-rw_timeout','8000000','-probesize','2500000','-analyzeduration','2500000','-show_streams','-show_format','-of','json',source],{stdio:['ignore','pipe','ignore']});
+    const child=spawn('ffprobe',['-v','error','-rw_timeout','8000000','-probesize','1500000','-analyzeduration','1500000','-show_streams','-show_format','-show_chapters','-of','json',source],{stdio:['ignore','pipe','ignore']});
     let text='';const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Analyse vidéo trop longue.'));},7500);
     child.stdout.on('data',chunk=>{text+=chunk;if(text.length>1048576){child.kill('SIGKILL');reject(new Error('Métadonnées trop volumineuses.'));}});
     child.on('error',()=>{clearTimeout(timer);reject(new Error('Adaptation vidéo indisponible.'));});
@@ -145,19 +169,22 @@ async function browserMedia(req,res,ticketId,{start=0,probeOnly=false,identity,l
       const dur=Number(info.format?.duration)||0;
       if(dur>0 && encoders<3){
         const startIdx=Math.max(0,Math.floor((Number(start)||0)/6));
-        createSegment(info,source,identity,startIdx,1080,{lang,allowFallback}).catch(()=>{});
-        if((startIdx+1)*6<dur && encoders<3)createSegment(info,source,identity,startIdx+1,1080,{lang,allowFallback}).catch(()=>{});
+        createSegment(info,source,identity,startIdx,1080,{lang,allowFallback,priority:true}).catch(()=>{});
+        if((startIdx+1)*6<dur && encoders<2)createSegment(info,source,identity,startIdx+1,1080,{lang,allowFallback}).catch(()=>{});
       }
       const {fr,en,tracks}=listAudioTracks(info.streams||[]);
       const selected=chooseAudio(info.streams||[],{lang,allowFallback});
       const selectedLang=isEnglishTrack(selected)&&!isFrenchTrack(selected)?'en':'fr';
+      const {chapters,intro}=extractChapters(info);
       res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
       res.end(JSON.stringify({
         duration:Number(info.format?.duration)||0,
         audioLanguage:selectedLang,
         hasFrenchAudio:Boolean(fr),
         hasEnglishAudio:Boolean(en||(info.streams||[]).filter(s=>s.codec_type==='audio').length>1),
-        audioTracks:tracks
+        audioTracks:tracks,
+        chapters,
+        intro
       }));
       return;
     }
@@ -244,7 +271,7 @@ function segmentArguments(info,source,start,length,destination,quality=1080,opti
   const vProfile = quality >= 1080 ? 'high' : 'baseline';
   const vLevel = quality >= 2160 ? '5.1' : quality >= 1080 ? '4.1' : '3.1';
   const threads = quality >= 1080 ? '0' : '4';
-  return ['-hide_banner','-loglevel','error','-nostdin','-y','-ss',String(start),'-rw_timeout','12000000','-i',source,'-t',String(length),
+  return ['-hide_banner','-loglevel','error','-nostdin','-y','-ss',String(start),'-rw_timeout','12000000','-probesize','1500000','-analyzeduration','1500000','-fflags','+genpts+discardcorrupt','-i',source,'-t',String(length),
     '-map','0:'+video.index,'-map','0:'+audio.index,'-sn','-dn',
     '-c:v','libx264','-preset','ultrafast','-tune','zerolatency','-profile:v',vProfile,'-level:v',vLevel,'-pix_fmt','yuv420p',
     '-vf',filters,'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',...(quality <= 720 ? ['-r','30','-g','180','-keyint_min','180'] : ['-g','144','-keyint_min','144']),
@@ -256,8 +283,13 @@ async function createSegment(info,source,identity,index,quality=1080,options={})
   const langKey=String(options?.lang||'fr').toLowerCase()==='en'?'en':'fr';
   const key=identity+':'+langKey+':'+quality+':'+index;const existing=segmentCache.get(key);
   if(existing){segmentCache.delete(key);segmentCache.set(key,existing);return existing;}
+  const priority=Boolean(options?.priority);
   const promise=(async()=>{
-    if(encoders>=3){if(encoderQueue.length>=24)throw new Error('Serveur occupé');await new Promise(resolve=>encoderQueue.push(resolve));}
+    const limit=priority?4:2;
+    if(encoders>=limit){
+      if(encoderQueue.length>=24)throw new Error('Serveur occupé');
+      await new Promise(resolve=>priority?encoderQueue.unshift(resolve):encoderQueue.push(resolve));
+    }
     encoders++;
     let file;
     try{
@@ -294,17 +326,17 @@ async function hlsMedia(req,res,ticketId,segmentIndex,identity,quality=1080,mast
       const playlist=master ? masterPlaylist(ticketId,querySuffix) : vodPlaylist(ticketId,duration,quality,querySuffix);
       const warmQ=master ? 1080 : quality;
       if(duration>0){
-        if(encoders<3)createSegment(info,source,identity,0,warmQ,options).catch(()=>{});
-        if(encoders<3 && duration>6)createSegment(info,source,identity,1,warmQ,options).catch(()=>{});
+        if(encoders<3)createSegment(info,source,identity,0,warmQ,{...options,priority:true}).catch(()=>{});
+        if(encoders<2 && duration>6)createSegment(info,source,identity,1,warmQ,options).catch(()=>{});
       }
       res.writeHead(200,{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'});
       return res.end(req.method==='HEAD'?undefined:playlist);
     }
     const duration=Number(info.format?.duration);
     if(!Number.isSafeInteger(segmentIndex)||segmentIndex<0||segmentIndex*6>=duration){res.writeHead(404);return res.end();}
-    const file=await createSegment(info,source,identity,segmentIndex,quality,options);if(res.destroyed)return;
-    for(let ahead=1;ahead<=4;ahead++){
-      if(encoders<3 && (segmentIndex+ahead)*6<duration){
+    const file=await createSegment(info,source,identity,segmentIndex,quality,{...options,priority:true});if(res.destroyed)return;
+    for(let ahead=1;ahead<=2;ahead++){
+      if(encoders<2 && encoderQueue.length===0 && (segmentIndex+ahead)*6<duration){
         createSegment(info,source,identity,segmentIndex+ahead,quality,options).catch(()=>{});
       }
     }

@@ -60,7 +60,7 @@ class JellyfinClient(context: Context) {
         set(value) = prefs.edit().putString("user_id", value).apply()
 
     var currentUserName: String
-        get() = prefs.getString("user_name", "Tom") ?: "Tom"
+        get() = prefs.getString("user_name", "")?.takeIf { it != "Tom" } ?: ""
         set(value) = prefs.edit().putString("user_name", value).apply()
 
     var isDemoMode: Boolean
@@ -74,6 +74,47 @@ class JellyfinClient(context: Context) {
             prefs.edit().putString("device_id", saved).apply()
         }
         saved
+    }
+
+    data class SavedProfile(val server: String, val user: String, val name: String, val token: String)
+
+    fun savedProfiles(): List<SavedProfile> = runCatching {
+        JsonParser.parseString(prefs.getString("profiles", "[]") ?: "[]").asJsonArray.map { element ->
+            val p = element.asJsonObject
+            SavedProfile(p.get("server").asString, p.get("user").asString, p.get("name").asString, p.get("token").asString)
+        }.filter { it.token.isNotBlank() && it.user.isNotBlank() }
+    }.getOrDefault(emptyList())
+
+    fun rememberProfile() {
+        if (!hasJellyfin() || isDemoMode || currentUserName.isBlank()) return
+        val profiles = savedProfiles().filter { it.server != serverUrl || it.user != userId } +
+            SavedProfile(serverUrl, userId, currentUserName, accessToken)
+        prefs.edit().putString("profiles", com.google.gson.Gson().toJson(profiles)).apply()
+    }
+
+    fun removeProfile(profile: SavedProfile) {
+        val remaining = savedProfiles().filter { it.server != profile.server || it.user != profile.user }
+        val editor = prefs.edit().putString("profiles", com.google.gson.Gson().toJson(remaining))
+        if (serverUrl == profile.server && userId == profile.user) {
+            editor.remove("access_token").remove("user_id").remove("user_name")
+        }
+        editor.apply()
+    }
+
+    suspend fun selectProfile(profile: SavedProfile): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder().url("${profile.server}/Users/Me")
+                .header("X-Emby-Token", profile.token).build()
+            httpClient.newCall(request).execute().use { response ->
+                check(response.isSuccessful) { "Session expirée. Reconnectez ce profil." }
+                val account = JsonParser.parseString(response.body?.string().orEmpty()).asJsonObject
+                check(account.get("Id")?.asString == profile.user) { "Session de profil invalide." }
+            }
+            rememberProfile()
+            prefs.edit().putString("server_url", profile.server).putString("access_token", profile.token)
+                .putString("user_id", profile.user).putString("user_name", profile.name)
+                .putBoolean("is_demo_mode", false).apply()
+        }
     }
 
     fun isConfigured(): Boolean = stremio.enabled || isDemoMode || hasJellyfin()
@@ -168,7 +209,6 @@ class JellyfinClient(context: Context) {
                         val code = json.get("Code")?.asString.orEmpty()
                         val secret = json.get("Secret")?.asString.orEmpty()
                         if (code.isNotBlank() && secret.isNotBlank()) {
-                            serverUrl = candidateUrl
                             return@withContext Result.success(
                                 QuickConnectState(code = code, secret = secret, resolvedServerUrl = candidateUrl)
                             )
@@ -236,11 +276,13 @@ class JellyfinClient(context: Context) {
                     val uname = userObj?.get("Name")?.asString ?: "lounis"
 
                     if (token.isNotBlank() && uid.isNotBlank()) {
+                        rememberProfile()
                         serverUrl = state.resolvedServerUrl
                         accessToken = token
                         userId = uid
                         currentUserName = uname
                         isDemoMode = false
+                        rememberProfile()
                         return@withContext Result.success(true)
                     }
                 }
@@ -282,11 +324,13 @@ class JellyfinClient(context: Context) {
                         val uname = userObj?.get("Name")?.asString ?: username.trim()
 
                         if (token.isNotBlank() && uid.isNotBlank()) {
+                            rememberProfile()
                             serverUrl = candidateUrl
                             accessToken = token
                             userId = uid
                             currentUserName = uname
                             isDemoMode = false
+                            rememberProfile()
                             return@withContext Result.success(Unit)
                         }
                     } else {

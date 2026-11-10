@@ -40,20 +40,39 @@
       PlayMethod: plan.method, AudioStreamIndex: audio ?? source?.DefaultAudioStreamIndex, SubtitleStreamIndex: subtitle
     } }).catch(() => {});
   }
-  // Only explicit intro boundaries are used; never guess the intro duration.
+  // Only explicit intro boundaries are used when available; fallback to chapter/smart intro skip for Real-Debrid episodes.
   function introRange(media) {
     const segments = Array.isArray(media?.MediaSegments) ? media.MediaSegments : media?.MediaSegments?.Items || [];
     for (const segment of segments) {
       const start = Number(segment.StartTicks) / 10000000, end = Number(segment.EndTicks) / 10000000;
       if (String(segment.Type).toLowerCase() === 'intro' && Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start) return {start,end};
     }
-    const chapters = media?.Chapters || [];
+    if (plan?.intro && Number.isFinite(plan.intro.start) && Number.isFinite(plan.intro.end) && plan.intro.end > plan.intro.start) {
+      return { start: plan.intro.start, end: plan.intro.end };
+    }
+    const chapters = media?.Chapters || plan?.chapters || [];
     const first = chapters.find(ch => /^(intro\s*start|début\s*(?:de\s*l[’']?)?intro)$/i.test((ch.Name || '').trim()));
     const last = chapters.find(ch => /^(intro\s*end|fin\s*(?:de\s*l[’']?)?intro)$/i.test((ch.Name || '').trim()));
     const start = Number(first?.StartPositionTicks) / 10000000, end = Number(last?.StartPositionTicks) / 10000000;
     if (Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start) return {start,end};
-    // Liens Real-Debrid : aucune donnée d'intro n'existe. Fenêtre standard d'épisode (comme Netflix).
-    return media?.stremio && media.Type === 'Episode' ? {start:4,end:90} : null;
+    for (let i = 0; i < chapters.length - 1; i++) {
+      const s = Number(chapters[i]?.StartPositionTicks) / 10000000;
+      const e = Number(chapters[i + 1]?.StartPositionTicks) / 10000000;
+      const name = String(chapters[i]?.Name || '').trim();
+      if (Number.isFinite(s) && Number.isFinite(e) && s < 360 && e - s >= 12 && e - s <= 140 && /(intro|opening|\bop\b|g[eé]n[eé]rique|theme)/i.test(name) && !/(end|outro|closing|\bed\b)/i.test(name)) {
+        return { start: s, end: e };
+      }
+    }
+    if (chapters.length >= 3 && media?.Type === 'Episode') {
+      for (let i = 0; i < chapters.length - 1; i++) {
+        const s = Number(chapters[i]?.StartPositionTicks) / 10000000;
+        const e = Number(chapters[i + 1]?.StartPositionTicks) / 10000000;
+        if (Number.isFinite(s) && Number.isFinite(e) && s <= 240 && e - s >= 25 && e - s <= 100) {
+          return { start: s, end: e };
+        }
+      }
+    }
+    return media?.stremio && media.Type === 'Episode' ? {start:4,end:180,heuristic:true} : null;
   }
   function outroStart(media) {
     const segments = Array.isArray(media?.MediaSegments) ? media.MediaSegments : media?.MediaSegments?.Items || [];
@@ -61,7 +80,7 @@
       const at = Number(segment.StartTicks) / 10000000;
       if (['outro', 'credits'].includes(String(segment.Type).toLowerCase()) && Number.isFinite(at) && at > 0) return at;
     }
-    const credits = (media?.Chapters || []).find(ch => /^(outro|credits?|générique(?:\s*de\s*fin)?|end\s*credits)$/i.test((ch.Name || '').trim()));
+    const credits = (media?.Chapters || plan?.chapters || []).find(ch => /^(outro|credits?|générique(?:\s*de\s*fin)?|end\s*credits)$/i.test((ch.Name || '').trim()));
     const at = Number(credits?.StartPositionTicks) / 10000000;
     return Number.isFinite(at) && at > 0 ? at : null;
   }
@@ -70,21 +89,67 @@
     A.jf('/MediaSegments/' + media.Id, { params: { includeSegmentTypes: 'Intro' } })
       .then(data => { if (version === generation && item === media) { media.MediaSegments = data?.Items || []; updatePrompts(); } }).catch(() => {});
   }
-  let dismissedNext = false;
+  let dismissedNext = false, dismissedIntro = false;
   const prompts = U.el('div', 'tv-playback-prompts');
   prompts.setAttribute('aria-label', 'Suggestions de lecture');
-  const skipIntro = action('Passer l’intro', () => { const range = introRange(item); if (range) seek(range.end); });
+  const skipIntro = action('Passer l’intro', () => {
+    const range = introRange(item);
+    if (!range) return;
+    dismissedIntro = true;
+    const cur = position();
+    const nextChapters = (item?.Chapters || plan?.chapters || [])
+      .map(c => Number(c.StartPositionTicks) / 10000000)
+      .filter(t => Number.isFinite(t) && t > cur + 15 && t <= cur + 110);
+    const target = !range.heuristic ? range.end : nextChapters.length ? nextChapters[0] : cur < 15 ? 85 : cur + 85;
+    seek(target);
+    updatePrompts();
+  });
   const nextEpisode = action('Épisode suivant', () => next && start(next, episodeList));
   const dismissNext = action('Pas maintenant', () => { dismissedNext = true; updatePrompts(); });
   prompts.append(skipIntro, nextEpisode, dismissNext);
   $('screen-player').append(prompts);
   const promptStyle = U.el('style');
-  promptStyle.textContent = '.tv-playback-prompts{position:absolute;right:4%;bottom:14%;z-index:25;display:flex;flex-direction:row-reverse;gap:12px;animation:tvPromptIn .28s ease-out}@keyframes tvPromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}.tv-playback-prompts[hidden],.tv-playback-prompts button[hidden]{display:none!important}.tv-playback-prompts button{font-size:22px;font-weight:700;padding:14px 28px;border-radius:6px;border:2px solid rgba(255,255,255,.85);background:rgba(20,20,20,.78);color:#fff;backdrop-filter:blur(6px)}.tv-playback-prompts button:first-child,.tv-playback-prompts button:nth-child(2){background:#fff;color:#000}.tv-playback-prompts button:focus{outline:3px solid #fff;outline-offset:3px;transform:scale(1.06)}';
+  promptStyle.textContent = '.tv-playback-prompts{position:absolute;right:4%;bottom:14%;z-index:25;display:flex;flex-direction:row-reverse;gap:12px;animation:tvPromptIn .28s ease-out;pointer-events:auto}@keyframes tvPromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}.tv-playback-prompts[hidden],.tv-playback-prompts button[hidden]{display:none!important}.tv-playback-prompts button{font-size:22px;font-weight:700;padding:14px 28px;border-radius:6px;border:2px solid rgba(255,255,255,.85);background:rgba(20,20,20,.78);color:#fff;backdrop-filter:blur(6px);pointer-events:auto}.tv-playback-prompts button:first-child,.tv-playback-prompts button:nth-child(2){background:#fff;color:#000}.tv-playback-prompts button:focus{outline:3px solid #fff;outline-offset:3px;transform:scale(1.06)}';
   document.head.append(promptStyle);
+  const subPrefs = (() => {
+    try { return Object.assign({ size: '100%', color: '#ffffff', bg: 'rgba(0,0,0,0.65)', pos: '0' }, JSON.parse(window.localStorage?.getItem('plezy.web.subStyle') || '{}')); }
+    catch { return { size: '100%', color: '#ffffff', bg: 'rgba(0,0,0,0.65)', pos: '0' }; }
+  })();
+  const subStyleEl = U.el('style');
+  document.head.append(subStyleEl);
+  function applySubStyle() {
+    try { window.localStorage?.setItem('plezy.web.subStyle', JSON.stringify(subPrefs)); } catch {}
+    subStyleEl.textContent = `#video::cue{font-size:${subPrefs.size}!important;color:${subPrefs.color}!important;background-color:${subPrefs.bg}!important;text-shadow:0 2px 6px rgba(0,0,0,.95)!important}#video::-webkit-media-text-track-display{transform:translateY(${subPrefs.pos})!important}`;
+  }
+  applySubStyle();
+  function customizeSubtitles() {
+    const sizes = [['Petit', '80%'], ['Normal', '100%'], ['Grand', '130%'], ['Très grand', '160%']];
+    const colors = [['Blanc', '#ffffff'], ['Jaune', '#ffd700'], ['Cyan', '#00ffff'], ['Vert', '#7cfc00']];
+    const bgs = [['Semi-transparent', 'rgba(0,0,0,0.65)'], ['Transparent', 'transparent'], ['Noir opaque', 'rgba(0,0,0,0.95)']];
+    const positions = [['Bas', '0'], ['Relevé', '-6vh'], ['Haut', '-12vh']];
+    const makeGroup = (prefix, list, key) => list.map(([label, val]) => action((subPrefs[key] === val ? '✓ ' : '') + prefix + ' : ' + label, () => {
+      subPrefs[key] = val; applySubStyle(); customizeSubtitles();
+    }, 'opt' + (subPrefs[key] === val ? ' sel' : '')));
+    U.modal('Personnaliser les sous-titres', [
+      ...makeGroup('Taille', sizes, 'size'),
+      ...makeGroup('Couleur', colors, 'color'),
+      ...makeGroup('Fond', bgs, 'bg'),
+      ...makeGroup('Position', positions, 'pos'),
+      action('Terminer', () => U.closeModal(), 'btn btn-white')
+    ]);
+  }
+  function syncFullscreenOverlays() {
+    const host = document.fullscreenElement || document.body;
+    if (!host || !host.append) return;
+    const modal = $('modal'), toastEl = $('toast');
+    if (modal && modal.parentNode !== host) host.append(modal);
+    if (toastEl && toastEl.parentNode !== host) host.append(toastEl);
+  }
+  document.addEventListener?.('fullscreenchange', syncFullscreenOverlays);
   function updatePrompts(ended = false) {
     const range = introRange(item), current = position(), length = duration();
     const active = !!item && U.screen === 'player' && !switching && !['idle','loading','error'].includes(state);
-    skipIntro.hidden = !(active && range && current >= range.start && current < range.end);
+    skipIntro.hidden = !(active && !dismissedIntro && range && current >= range.start && current < range.end);
     const outro = outroStart(item);
     nextEpisode.hidden = !(active && next && !dismissedNext && (ended || length > 0 && current >= (outro && outro > length * .5 ? outro : Math.max(0,length - 30))));
     if (!nextEpisode.hidden && next) nextEpisode.textContent = 'Épisode suivant' + (next.IndexNumber ? ' · É' + next.IndexNumber : '');
@@ -286,7 +351,7 @@
     if (item) stop(false, false);
     const version = ++generation;
     returnScreen = originalScreen === 'main' ? 'main' : 'detail';
-    dismissedNext = false; prompts.hidden = true;
+    dismissedNext = false; dismissedIntro = false; prompts.hidden = true;
     item = selected; source = selected.MediaSources?.[0]; audio = undefined; subtitle = -1; bitrate = 0; fallback = false; preferMse=false;
     parkArtwork();
     episodeList = episodes; const index = episodes.findIndex(e => e.Id === selected.Id); next = index >= 0 ? episodes[index + 1] : undefined;
@@ -324,7 +389,7 @@
     } catch (error) { if (version === generation) fail(error.message); }
   }
   function stop(record = true, navigate = true) {
-    prompts.hidden = true; dismissedNext = false;
+    prompts.hidden = true; dismissedNext = false; dismissedIntro = false;
     report('Stopped').then(()=>window.dispatchEvent?.(new Event('plezy:playback-stopped'))); stopEncoding(plan); clearInterval(reportTimer); clearTimeout(hideTimer); clearTimeout(startupTimer); clearTimeout(bufferTimer);
     ++generation; ++loadGeneration; negotiation?.abort(); switching = true; destroyMedia(); switching = false; item = null; plan = null; state = 'idle';
     restoreArtwork();
@@ -397,7 +462,8 @@
   };
   $('pSubs').onclick = () => {
     if (item?.demo || item?.offline) return toast('La sélection des sous-titres nécessite une lecture depuis Jellyfin.');
-    choose('Sous-titres', [['Désactivés', -1], ...streams('Subtitle').map(s => [s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index, s.Index])], subtitle, async value => {
+    choose('Sous-titres', [['Désactivés', -1], ...streams('Subtitle').map(s => [s.DisplayTitle || s.Title || s.Language || 'Piste ' + s.Index, s.Index]), ['Personnaliser les sous-titres…', 'custom']], subtitle, async value => {
+      if (value === 'custom') return customizeSubtitles();
       subtitle = value;
       if (item?.stremio) { applyExternalSubtitles(); renderLanguageShortcuts(); return; }
       const at = Math.max(desiredStart, position()); await load(at, false);
@@ -420,6 +486,7 @@
         if (item?.stremio) { applyExternalSubtitles(); renderLanguageShortcuts(); return; }
         const at = Math.max(desiredStart, position()); await load(at, false);
       }, 'opt' + (subtitle === s.Index ? ' sel' : ''))),
+      action('Personnaliser les sous-titres', customizeSubtitles),
       action('Audio', () => $('pAudio').click()),
       action('Sous-titres', () => $('pSubs').click())
     ];
@@ -430,11 +497,11 @@
     choose('Qualité vidéo', [['Automatique (1080p / 4K)', 0], ['4K UHD · 20 Mb/s', 20000000], ['1080p · 12 Mb/s', 12000000], ['1080p · 8 Mb/s', 8000000], ['720p · 4 Mb/s', 4000000], ['480p · 1,5 Mb/s', 1500000]], bitrate, async value => { const at = Math.max(desiredStart, position()); bitrate = value; await load(at, item?.stremio ? false : value > 0); });
   };
   $('pChapters').onclick = () => {
-    const chapters = item?.Chapters || []; if (!chapters.length) return toast('Aucun chapitre disponible.');
+    const chapters = item?.Chapters || plan?.chapters || []; if (!chapters.length) return toast('Aucun chapitre disponible.');
     choose('Chapitres', chapters.map(ch => [time(ch.StartPositionTicks / 10000000) + ' · ' + ch.Name, ch.StartPositionTicks / 10000000]), -1, value => seek(value));
   };
   $('pAspect').onclick = () => { aspect = (aspect + 1) % 3; video.classList.toggle('zoom', aspect === 1); video.classList.toggle('fill', aspect === 2); toast('Format : ' + ['original','zoom','étiré'][aspect]); };
-  $('pSettings').onclick = () => U.modal('Réglages de lecture', [action('Audio et sous-titres', () => $('pTracks').click()), action('Qualité vidéo', () => $('pQuality').click()), action('Vitesse de lecture', () => $('pSpeed').click()), action('Chapitres', () => $('pChapters').click()), action('Format de l’image', () => $('pAspect').click()), ...(episodeList.length ? [action('Épisodes', showEpisodes)] : []), action('Reculer de 10 secondes',()=>{U.closeModal();seek(position()-10);}), action('Avancer de 10 secondes',()=>{U.closeModal();seek(position()+10);}), action('Activer / couper le son',()=>{video.muted=!video.muted;U.closeModal();}), action('Plein écran',()=>{U.closeModal();return fullscreen();}), action('Aide à la lecture',()=>$('pReport').click()), U.el('p', 'muted', $('pStream').textContent)]);
+  $('pSettings').onclick = () => U.modal('Réglages de lecture', [action('Audio et sous-titres', () => $('pTracks').click()), action('Personnaliser les sous-titres', customizeSubtitles), action('Qualité vidéo', () => $('pQuality').click()), action('Vitesse de lecture', () => $('pSpeed').click()), action('Chapitres', () => $('pChapters').click()), action('Format de l’image', () => $('pAspect').click()), ...(episodeList.length ? [action('Épisodes', showEpisodes)] : []), action('Reculer de 10 secondes',()=>{U.closeModal();seek(position()-10);}), action('Avancer de 10 secondes',()=>{U.closeModal();seek(position()+10);}), action('Activer / couper le son',()=>{video.muted=!video.muted;U.closeModal();}), action('Plein écran',()=>{U.closeModal();return fullscreen();}), action('Aide à la lecture',()=>$('pReport').click()), U.el('p', 'muted', $('pStream').textContent)]);
   $('pSpeed').onclick = () => choose('Vitesse de lecture', [['0,5 ×',.5],['0,75 ×',.75],['Normale',1],['1,25 ×',1.25],['1,5 ×',1.5],['1,75 ×',1.75],['2 ×',2]], selectedSpeed, value => { selectedSpeed = value; video.playbackRate = value; });
   function showEpisodes() {
     if (!episodeList.length) return;
@@ -448,6 +515,7 @@
       else if ($('screen-player').requestFullscreen) await $('screen-player').requestFullscreen();
       else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
       else toast('Le plein écran est indisponible dans ce navigateur.');
+      syncFullscreenOverlays();
     } catch { toast('Le plein écran est indisponible.'); }
   }
   $('pFull').onclick = fullscreen;
@@ -463,14 +531,14 @@
   video.onvolumechange = () => { $('pVolume').value = video.muted ? 0 : video.volume; $('pMute').setAttribute('aria-label', video.muted ? 'Activer le son' : 'Couper le son'); $('pMute').classList.toggle('muted-volume', video.muted || video.volume === 0); };
   $('screen-player').onpointermove = wake;
   $('screen-player').onclick = event => {
-    if (event.target.closest('button,input,[role="slider"]')) return;
+    if (event.target.closest('button,input,select,[role="slider"],#modal,#toast,.tv-playback-prompts,#pRecovery')) return;
     if ($('playerUi').classList.contains('hide')) wake();
     else if (event.pointerType === 'touch' || matchMedia('(pointer:coarse)').matches) { if (state === 'playing') $('playerUi').classList.add('hide'); }
     else if (state === 'playing' || state === 'paused') { video.paused ? run(playVideo) : video.pause(); }
   };
   $('screen-player').onfocusin = wake;
   if (window.MutationObserver) {
-    new MutationObserver(() => { if (U.screen === 'player') wake(); })
+    new MutationObserver(() => { syncFullscreenOverlays(); if (U.screen === 'player') wake(); })
       .observe($('modal'),{attributes:true,attributeFilter:['hidden']});
   }
   let scrubTarget = 0;

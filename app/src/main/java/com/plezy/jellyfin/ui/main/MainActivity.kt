@@ -689,8 +689,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSettingsMenu() {
         val seerrState = if (seerrClient.isAuthenticated()) "connecté" else "à configurer"
+        val profileLabel = jellyfinClient.currentUserName.takeIf { it.isNotBlank() }?.let { "Changer de profil ($it)" } ?: "Profils & connexion"
         val items = arrayOf(
-            "Changer de profil (${jellyfinClient.currentUserName})",
+            profileLabel,
             "Configurer Seerr ($seerrState)",
             "Serveur Jellyfin & Quick Connect",
             "Actualiser"
@@ -754,20 +755,82 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showUserProfileSwitcher() {
-        lifecycleScope.launch {
-            val users = jellyfinClient.getPublicUsers()
-            if (users.isEmpty()) return@launch
-            AlertDialog.Builder(this@MainActivity)
-                .setTitle("Qui est-ce ?")
-                .setItems(users.map { it.name }.toTypedArray()) { _, which ->
-                    val chosen = users[which]
-                    jellyfinClient.userId = chosen.id
-                    jellyfinClient.currentUserName = chosen.name
-                    findViewById<TextView>(R.id.navProfile).text = chosen.name.firstOrNull()?.uppercase() ?: "L"
-                    openPage(Page.HOME)
-                }
-                .show()
+        jellyfinClient.rememberProfile()
+        val profiles = jellyfinClient.savedProfiles()
+        fun px(value: Int) = (value * resources.displayMetrics.density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            setPadding(px(24), px(16), px(24), px(16))
         }
+        val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Qui est-ce ?")
+            .setView(android.widget.ScrollView(this).apply { addView(container) })
+            .setNegativeButton("Retour", null)
+            .create()
+        var selecting = false
+        profiles.forEach { profile ->
+            val tile = TextView(this).apply {
+                text = "${profile.name.firstOrNull()?.uppercase() ?: "P"}\n\n${profile.name}"
+                textSize = 20f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.WHITE)
+                contentDescription = "Choisir le profil ${profile.name}"
+                isFocusable = true
+                isClickable = true
+                setPadding(px(8), px(16), px(8), px(16))
+                fun paint(focused: Boolean) {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = px(10).toFloat()
+                        setColor(android.graphics.Color.rgb(38, 55, 76))
+                        setStroke(px(if (focused) 3 else 1), if (focused) android.graphics.Color.WHITE else android.graphics.Color.GRAY)
+                    }
+                }
+                paint(false)
+                setOnFocusChangeListener { _, focused -> paint(focused) }
+                setOnClickListener {
+                    if (!selecting) {
+                        selecting = true
+                        lifecycleScope.launch {
+                            jellyfinClient.selectProfile(profile).fold(
+                                onSuccess = { dialog.dismiss(); recreate() },
+                                onFailure = { selecting = false; Toast.makeText(this@MainActivity, it.message, Toast.LENGTH_LONG).show() }
+                            )
+                        }
+                    }
+                }
+                setOnLongClickListener {
+                    jellyfinClient.removeProfile(profile)
+                    dialog.dismiss()
+                    Toast.makeText(this@MainActivity, "Profil ${profile.name} retiré", Toast.LENGTH_SHORT).show()
+                    recreate()
+                    true
+                }
+            }
+            grid.addView(tile, android.widget.GridLayout.LayoutParams().apply {
+                width = px(140); height = px(136)
+                setMargins(px(6), px(6), px(6), px(6))
+            })
+        }
+        container.addView(grid)
+        container.addView(android.widget.Button(this).apply {
+            text = "..."
+            textSize = 28f
+            contentDescription = "Connecter un autre profil"
+            setOnClickListener {
+                if (!selecting) {
+                    jellyfinClient.rememberProfile()
+                    dialog.dismiss()
+                    startActivity(Intent(this@MainActivity, ServerSetupActivity::class.java).putExtra("force_setup", true))
+                }
+            }
+        }, LinearLayout.LayoutParams(px(80), px(56)).apply { topMargin = px(20) })
+        container.addView(TextView(this).apply {
+            text = "Connecter un autre profil"
+            gravity = android.view.Gravity.CENTER
+        })
+        dialog.show()
     }
 
     private fun openMediaDetail(item: MediaItem) {

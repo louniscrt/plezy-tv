@@ -187,7 +187,7 @@ test('TV does not guess an intro and offers the actual next episode near the end
  f.player.stop();
 });
 
-test('Web and TV show Netflix-style intro and next-episode popups; Real-Debrid episodes get a standard intro window',async()=>{
+test('Web and TV show Netflix-style intro and next-episode popups; Real-Debrid episodes get a smart intro skip',async()=>{
  for(const variant of ['','tv/']){
   const source={Id:'s'},episodes=[{Id:'one',Name:'One',Type:'Episode',stremio:true,MediaSources:[source]},{Id:'two',Name:'Two',Type:'Episode',IndexNumber:2,MediaSources:[source]}];
   const f=fixture(async()=>({url:'http://server/movie.mp4',hls:false,method:'DirectPlay',source}),variant);
@@ -196,7 +196,7 @@ test('Web and TV show Netflix-style intro and next-episode popups; Real-Debrid e
   const [skip,next]=prompts.children;
   f.video.currentTime=1;f.video.ontimeupdate();assert.equal(skip.hidden,true);
   f.video.currentTime=30;f.video.ontimeupdate();assert.equal(skip.hidden,false);
-  await skip.callback();assert.equal(f.video.currentTime,90);
+  await skip.callback();assert.equal(f.video.currentTime,115);assert.equal(skip.hidden,true);
   f.video.currentTime=710;f.video.ontimeupdate();assert.equal(next.hidden,false);assert.match(next.textContent,/Épisode suivant/);
  }
 });

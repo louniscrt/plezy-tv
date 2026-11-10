@@ -282,27 +282,33 @@ class PlayerActivity : AppCompatActivity() {
         addFocusBounce(btnQuality, 1.08f)
 
         // 2. Audio & Subtitles
+        applySubtitleStyle()
         val btnSubtitles = findViewById<View>(R.id.btnSubtitles)
         btnSubtitles.setOnClickListener {
             dialogOpen = true
             uiHandler.removeCallbacks(hideOverlayRunnable)
             val audioItems = mediaItem.audioTracks.map { "🔊 Audio: ${it.displayTitle}" }
             val subItems = mediaItem.subtitleTracks.map { "💬 Sous-titres: ${it.displayTitle}" }
-            val combined = (audioItems + subItems).toTypedArray()
+            val combined = (audioItems + subItems + listOf("🎨 Personnaliser les sous-titres…")).toTypedArray()
 
             AlertDialog.Builder(this)
                 .setTitle("Audio & Sous-titres")
                 .setItems(combined) { _, which ->
-                    if (which < mediaItem.audioTracks.size) {
-                        val chosenAudio = mediaItem.audioTracks[which]
-                        selectedAudioIndex = chosenAudio.index
-                        Toast.makeText(this, "Audio: ${chosenAudio.displayTitle}", Toast.LENGTH_SHORT).show()
-                    } else {
-                        val chosenSub = mediaItem.subtitleTracks[which - mediaItem.audioTracks.size]
-                        selectedSubtitleIndex = chosenSub.index
-                        Toast.makeText(this, "Sous-titres: ${chosenSub.displayTitle}", Toast.LENGTH_SHORT).show()
+                    when {
+                        which < mediaItem.audioTracks.size -> {
+                            val chosenAudio = mediaItem.audioTracks[which]
+                            selectedAudioIndex = chosenAudio.index
+                            Toast.makeText(this, "Audio: ${chosenAudio.displayTitle}", Toast.LENGTH_SHORT).show()
+                            reloadStreamPreservingPosition()
+                        }
+                        which < mediaItem.audioTracks.size + mediaItem.subtitleTracks.size -> {
+                            val chosenSub = mediaItem.subtitleTracks[which - mediaItem.audioTracks.size]
+                            selectedSubtitleIndex = chosenSub.index
+                            Toast.makeText(this, "Sous-titres: ${chosenSub.displayTitle}", Toast.LENGTH_SHORT).show()
+                            reloadStreamPreservingPosition()
+                        }
+                        else -> showSubtitleStyleDialog()
                     }
-                    reloadStreamPreservingPosition()
                     showOverlayAndScheduleHide()
                 }
                 .setOnDismissListener { dialogOpen = false; showOverlayAndScheduleHide() }
@@ -392,6 +398,70 @@ class PlayerActivity : AppCompatActivity() {
         btnBack.nextFocusDownId = R.id.chapterProgressBar
         btnPlayPause.requestFocus()
         showOverlayAndScheduleHide()
+    }
+
+    private fun applySubtitleStyle() {
+        val prefs = getSharedPreferences("plezy_sub_prefs", MODE_PRIVATE)
+        val scale = prefs.getFloat("scale", 0.0533f)
+        val fg = prefs.getInt("fg", android.graphics.Color.WHITE)
+        val bg = prefs.getInt("bg", android.graphics.Color.argb(165, 0, 0, 0))
+        val bottom = prefs.getFloat("bottom", 0.08f)
+        playerView.subtitleView?.apply {
+            setFractionalTextSize(scale)
+            setBottomPaddingFraction(bottom)
+            setStyle(
+                com.google.android.exoplayer2.ui.CaptionStyleCompat(
+                    fg,
+                    bg,
+                    android.graphics.Color.TRANSPARENT,
+                    com.google.android.exoplayer2.ui.CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW,
+                    android.graphics.Color.BLACK,
+                    null
+                )
+            )
+        }
+    }
+
+    private fun showSubtitleStyleDialog() {
+        val prefs = getSharedPreferences("plezy_sub_prefs", MODE_PRIVATE)
+        val options = arrayOf(
+            "Taille : Petit",
+            "Taille : Normal",
+            "Taille : Grand",
+            "Taille : Très grand",
+            "Couleur : Blanc",
+            "Couleur : Jaune",
+            "Couleur : Cyan",
+            "Fond : Semi-transparent",
+            "Fond : Transparent",
+            "Fond : Noir opaque",
+            "Position : Bas",
+            "Position : Relevé",
+            "Position : Haut"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Personnaliser les sous-titres")
+            .setItems(options) { _, which ->
+                val ed = prefs.edit()
+                when (which) {
+                    0 -> ed.putFloat("scale", 0.042f)
+                    1 -> ed.putFloat("scale", 0.0533f)
+                    2 -> ed.putFloat("scale", 0.068f)
+                    3 -> ed.putFloat("scale", 0.082f)
+                    4 -> ed.putInt("fg", android.graphics.Color.WHITE)
+                    5 -> ed.putInt("fg", android.graphics.Color.rgb(255, 215, 0))
+                    6 -> ed.putInt("fg", android.graphics.Color.CYAN)
+                    7 -> ed.putInt("bg", android.graphics.Color.argb(165, 0, 0, 0))
+                    8 -> ed.putInt("bg", android.graphics.Color.TRANSPARENT)
+                    9 -> ed.putInt("bg", android.graphics.Color.argb(240, 0, 0, 0))
+                    10 -> ed.putFloat("bottom", 0.08f)
+                    11 -> ed.putFloat("bottom", 0.14f)
+                    12 -> ed.putFloat("bottom", 0.22f)
+                }
+                ed.apply()
+                applySubtitleStyle()
+            }
+            .show()
     }
 
     private fun jumpToChapter(next: Boolean) {
@@ -533,8 +603,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun initializeExoPlayer() {
         if (player != null || !::mediaItem.isInitialized) return
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(10_000, 30_000, 1_000, 2_000)
-            .setTargetBufferBytes(20 * 1024 * 1024)
+            .setBufferDurationsMs(20_000, 60_000, 1_000, 4_000)
+            .setTargetBufferBytes(32 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false).build()
         val exo = ExoPlayer.Builder(this).setLoadControl(loadControl).build()
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setPreferredAudioLanguage("fr").build()

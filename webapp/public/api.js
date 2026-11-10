@@ -197,6 +197,7 @@
     },
     removeProfile(server, user) {
       localStorage.setItem('plezy.web.profiles', JSON.stringify(this.profiles().filter(p => p.server !== server || p.user !== user)));
+      if (config.server === server && config.user === user) this.logout();
     },
     session(server, result) {
       if (!result.AccessToken || !result.User?.Id) throw new Error('Session Jellyfin invalide.');
