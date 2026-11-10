@@ -231,10 +231,14 @@ class MediaDetailActivity : AppCompatActivity() {
                 triggerOverseerrRequest(target)
                 return@setOnClickListener
             }
-            val streamUrl = jellyfinClient.buildPlaybackUrl(target)
             Toast.makeText(this, "Downloading: ${target.title}", Toast.LENGTH_SHORT).show()
             lifecycleScope.launch {
-                offlineManager.enqueueDownload(target, streamUrl).onSuccess {
+                val stream = jellyfinClient.playbackStreams(target).firstOrNull()
+                if (stream == null || stream.headers.isNotEmpty()) {
+                    Toast.makeText(this@MediaDetailActivity, "Aucun lien téléchargeable disponible", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                offlineManager.enqueueDownload(target, stream.url).onSuccess {
                     Toast.makeText(this@MediaDetailActivity, "Téléchargement terminé", Toast.LENGTH_SHORT).show()
                 }.onFailure {
                     Toast.makeText(this@MediaDetailActivity, it.message ?: "Échec du téléchargement", Toast.LENGTH_LONG).show()

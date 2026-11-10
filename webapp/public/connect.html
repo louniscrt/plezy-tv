@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080808"><meta name="referrer" content="no-referrer"><title>Connecter Seerr · Plezy</title><link rel="icon" href="icon.svg"><link rel="stylesheet" href="connect.css"><script src="connect.js" defer></script></head>
+<body><main class="pair-card"><div class="brand"><span>P</span> PLEZY</div><p class="eyebrow">VOTRE TÉLÉPHONE, VOTRE CLAVIER</p><h1>Connecter Seerr à votre TV</h1><p id="intro">Vérification du QR code…</p>
+<form id="pairForm" hidden><div class="code-box"><small>Le même code doit apparaître sur votre TV</small><strong id="pairCode"></strong></div>
+<label>Adresse de Seerr<input id="server" type="url" placeholder="http://192.168.0.89:5056" autocomplete="url" required></label>
+<label>Mode de connexion<select id="method"><option value="key">Clé API · connexion durable</option><option value="account">Compte Seerr · e-mail et mot de passe</option></select></label>
+<div id="keyFields"><label>Clé API Seerr<input id="key" type="password" autocomplete="off" placeholder="Collez la clé ici"></label><p class="help">Disponible dans Seerr → Paramètres → Général. Elle sera conservée sur la TV.</p></div>
+<div id="accountFields" hidden><label>E-mail Seerr<input id="email" type="email" autocomplete="username"></label><label>Mot de passe<input id="password" type="password" autocomplete="current-password"></label><p class="help">Le mot de passe sert uniquement à ouvrir la session et n’est pas enregistré par Plezy.</p></div>
+<button id="submit" type="submit">Connecter cette TV</button></form>
+<p id="message" role="status" aria-live="polite"></p><p class="foot">Téléphone et TV sur le même réseau. Ce QR code est valable cinq minutes et utilisable une seule fois.</p></main></body></html>

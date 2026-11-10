@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,8 +14,13 @@ android {
         // Cible explicitement Fire OS / Android 5.1 (API Level 22)
         minSdk = 22
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.2.0-PlezyTV"
+        versionCode = 7
+        versionName = "2.3.0-Stremio"
+        val defaultServer = providers.gradleProperty("plezy.jellyfinServerUrl").orElse("").get()
+        require(defaultServer.isEmpty() || URI(defaultServer).let {
+            it.scheme in listOf("http", "https") && it.host != null && it.userInfo == null && it.query == null && it.fragment == null
+        }) { "plezy.jellyfinServerUrl must be an HTTP(S) server URL without credentials" }
+        buildConfigField("String", "JELLYFIN_SERVER_URL", "\"" + defaultServer.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
 
         // MultiDex requis sur API 22 si le nombre de méthodes dépasse 64K
         multiDexEnabled = true
@@ -45,10 +52,13 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     // Support AndroidX & UI légère compatible API 22
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")

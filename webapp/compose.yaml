@@ -1,0 +1,22 @@
+services:
+  plezy-web:
+    build: .
+    image: plezy-web:local
+    restart: unless-stopped
+    init: true
+    ports:
+      - "8081:8090"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8090"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

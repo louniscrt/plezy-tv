@@ -29,6 +29,13 @@ import com.plezy.jellyfin.data.local.OfflineDownloadManager
 import com.plezy.jellyfin.data.model.MediaItem
 import com.plezy.jellyfin.util.CodecDetector
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import com.plezy.jellyfin.data.api.StremioClient
+import com.plezy.jellyfin.data.api.StremioEngine
+import com.google.android.exoplayer2.source.DefaultMediaSourceFactory
+import com.google.android.exoplayer2.upstream.DefaultDataSource
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,6 +56,11 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var mediaItem: MediaItem
     private var playlist: List<MediaItem> = emptyList()
     private var player: ExoPlayer? = null
+
+    private var streamJob: Job? = null
+    private var stremioStreams: List<StremioEngine.Stream> = emptyList()
+    private var stremioKey: String? = null
+    private var stremioIndex = 0
 
     private var selectedBitrate: Int? = null
     private var selectedAudioIndex: Int? = null
@@ -425,6 +437,40 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setStream(exo: ExoPlayer, position: Long, playing: Boolean) {
         val local = offlineManager.getLocalFileFor(mediaItem.id)
+        if (local == null && StremioClient.owns(mediaItem.id)) {
+            streamJob?.cancel()
+            val selectedItem = mediaItem
+            streamJob = lifecycleScope.launch {
+                findViewById<View>(R.id.playerBuffering).visibility = View.VISIBLE
+                try {
+                    if (stremioKey != selectedItem.id) {
+                        stremioStreams = jellyfinClient.playbackStreams(selectedItem)
+                        stremioKey = selectedItem.id
+                        stremioIndex = 0
+                    }
+                    if (player !== exo || mediaItem.id != selectedItem.id) return@launch
+                    val stream = stremioStreams.getOrNull(stremioIndex)
+                    if (stream == null) {
+                        findViewById<View>(R.id.playerBuffering).visibility = View.GONE
+                        Toast.makeText(this@PlayerActivity, "Aucun lien de lecture compatible. Vérifiez vos addons et votre compte Real-Debrid.", Toast.LENGTH_LONG).show()
+                        return@launch
+                    }
+                    jellyfinClient.stremio.remember(selectedItem)
+                    tvStreamModeBadge.text = "Qualité originale"
+                    findViewById<View>(R.id.btnQuality).isEnabled = false
+                    val http = DefaultHttpDataSource.Factory().setDefaultRequestProperties(stream.headers)
+                    val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlayerActivity, http))
+                    exo.setMediaSource(factory.createMediaSource(ExoMediaItem.fromUri(stream.url)), position)
+                    exo.prepare(); exo.playWhenReady = playing
+                    showOverlayAndScheduleHide()
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    findViewById<View>(R.id.playerBuffering).visibility = View.GONE
+                    Toast.makeText(this@PlayerActivity, "Impossible de résoudre les liens Stremio. Vérifiez la configuration des addons.", Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
         val url = local?.toURI()?.toString() ?: jellyfinClient.buildPlaybackUrl(mediaItem, selectedBitrate, selectedAudioIndex, selectedSubtitleIndex)
         tvStreamModeBadge.text = when {
             local != null -> "Hors ligne"
@@ -479,6 +525,16 @@ class PlayerActivity : AppCompatActivity() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 findViewById<View>(R.id.playerBuffering).visibility = View.GONE
+                if (StremioClient.owns(mediaItem.id)) {
+                    if (stremioIndex + 1 < stremioStreams.size) {
+                        stremioIndex++
+                        setStream(exo, exo.currentPosition.coerceAtLeast(0L), exo.playWhenReady)
+                    } else {
+                        Toast.makeText(this@PlayerActivity, "Les liens proposés ne sont pas lisibles sur cet appareil.", Toast.LENGTH_LONG).show()
+                        showOverlayAndScheduleHide()
+                    }
+                    return
+                }
                 if (!fallbackTried && selectedBitrate == null && offlineManager.getLocalFileFor(mediaItem.id) == null) {
                     fallbackTried = true
                     selectedBitrate = 4_000_000
@@ -626,6 +682,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onPause()
     }
     override fun onStop() {
+        streamJob?.cancel()
         if (Build.VERSION.SDK_INT > 23 && ::playerOverlay.isInitialized) releasePlayer()
         super.onStop()
     }

@@ -1,0 +1,45 @@
+/* Référence TV fournie : trois commandes, un seul rail, langues et engrenage.
+   Cette feuille n'est chargée que par /tv/index.html. */
+html.plezy-tv-build #screen-player{--player-pad:7vw}
+html.plezy-tv-build #screen-player .player-ui{background:linear-gradient(180deg,#08091640,transparent 24%,transparent 65%,#08091685)}
+html.plezy-tv-build #screen-player[data-state=paused] .player-ui{background:linear-gradient(90deg,#15162640,transparent 80%),linear-gradient(0deg,#0d10276e,transparent 68%)}
+html.plezy-tv-build #screen-player .p-top{padding:45px var(--player-pad) 0;gap:22px;align-items:flex-start}
+html.plezy-tv-build #screen-player .p-top .player-icon{width:42px;height:42px;min-height:42px;padding:5px;border-radius:50%}
+html.plezy-tv-build #screen-player .p-top .player-icon svg{width:32px;height:32px;stroke-width:1.6}
+html.plezy-tv-build #screen-player .p-options-label{position:absolute;left:calc(var(--player-pad) + 47px);top:101px;font-size:16px;font-weight:500;letter-spacing:.015em}
+html.plezy-tv-build #screen-player .player-now{font-size:24px;gap:4px;line-height:1.25;margin-top:0;font-style:italic;align-items:flex-end;max-width:48%}
+html.plezy-tv-build #screen-player .player-now strong{font-weight:700}
+html.plezy-tv-build #screen-player .player-now span{font-size:20px;font-weight:500}
+html.plezy-tv-build #screen-player .pause-info{left:9vw;right:9vw;bottom:40%;gap:12px;align-items:flex-start}
+html.plezy-tv-build #screen-player .pause-brand{color:#e50914;font-weight:800;letter-spacing:.07em;font-size:15px;margin-bottom:-8px}
+html.plezy-tv-build #screen-player .pause-info h1{font-family:Georgia,'Times New Roman',serif;font-size:clamp(36px,4.1vw,70px);font-weight:700;text-transform:uppercase;letter-spacing:-.025em;line-height:1.08;max-width:75%;text-shadow:0 2px 6px #0005}
+html.plezy-tv-build #screen-player .pause-logo{max-width:43vw;max-height:100px;object-fit:contain;object-position:left}
+html.plezy-tv-build #screen-player .pause-info h2{font-size:18px;font-weight:500;margin-top:3px}
+html.plezy-tv-build #screen-player .player-bottom{inset:auto 9vw 0;padding:0 0 32px;gap:12px;border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none}
+html.plezy-tv-build #screen-player .p-timeline{grid-template-columns:56px auto minmax(0,1fr) auto;gap:22px}
+html.plezy-tv-build #screen-player .p-timeline .play-toggle{width:54px;height:54px;min-height:54px;padding:14px;background:#fff;color:#111;border-radius:50%}
+html.plezy-tv-build #screen-player .play-toggle svg{width:29px;height:29px}
+html.plezy-tv-build #screen-player .p-elapsed,html.plezy-tv-build #screen-player .p-remaining{font-size:19px;font-weight:600;min-width:48px}
+html.plezy-tv-build #screen-player .p-bar:before,html.plezy-tv-build #screen-player .p-fill,html.plezy-tv-build #screen-player .p-buf{top:10px;bottom:10px;border-radius:1px}
+html.plezy-tv-build #screen-player .p-knob{width:6px;height:6px}
+html.plezy-tv-build #screen-player .player-controls{flex-wrap:nowrap;justify-content:flex-end;gap:9px;padding:0 48px 0 78px}
+html.plezy-tv-build #screen-player .player-languages{order:0;width:auto;min-width:0;gap:8px;justify-content:flex-end;flex-wrap:nowrap}
+html.plezy-tv-build #screen-player .language-pill{font-size:13px;line-height:1.1;min-height:30px;padding:7px 13px;background:#c3c3d266;color:#fff;max-width:360px;font-weight:600;border:0;border-radius:999px}
+html.plezy-tv-build #screen-player .language-pill.selected{background:#c3c3d280}
+html.plezy-tv-build #screen-player #pSettings{pointer-events:auto;width:32px;height:32px;min-height:32px;padding:6px;border-radius:50%;background:#c3c3d266;flex:none}
+html.plezy-tv-build #screen-player #pSettings svg{width:21px;height:21px;stroke-width:1.8}
+html.plezy-tv-build #screen-player .player-icon.tv-focus{outline:2px solid #fff!important;outline-offset:4px!important;box-shadow:none}
+html.plezy-tv-build #screen-player .language-pill.tv-focus,html.plezy-tv-build #screen-player #pSettings.tv-focus{background:#fff;color:#101010;outline:none!important;box-shadow:0 0 0 3px #ffffff40}
+@media(max-height:550px){
+ html.plezy-tv-build #screen-player .p-top{padding-top:25px}
+ html.plezy-tv-build #screen-player .p-options-label{top:77px}
+ html.plezy-tv-build #screen-player .pause-info{bottom:39%}
+ html.plezy-tv-build #screen-player .pause-logo{max-height:75px}
+ html.plezy-tv-build #screen-player .pause-info h1{font-size:38px}
+ html.plezy-tv-build #screen-player .player-bottom{padding-bottom:16px;gap:5px}
+}
+/* Keep the engine's placeholder behind a black screen until playback starts. */
+html.plezy-tv-build #screen-player{background:#000}
+html.plezy-tv-build #screen-player[data-state=loading] .player-ui{background:none}
+html.plezy-tv-build #video:not([data-playing-frame]){opacity:0}
+html.plezy-tv-build #video::-webkit-media-controls{display:none!important}

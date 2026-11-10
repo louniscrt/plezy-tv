@@ -34,5 +34,13 @@ PlezyTV-VegaOS/
 sideload-vega.*
 smart-tv/
 plezytv_armv7/
-webapp/
 
+
+# Private Stremio manifests may contain account tokens
+**/stremio.json
+**/stremio.local.json
+**/.env
+**/.env.*
+!**/.env.example
+!tools/configure-stremio.py
+webapp/node_modules/

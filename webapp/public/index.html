@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Plezy</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="player.css?v=20261103-2">
+<link rel="stylesheet" href="detail.css?v=20261103-2">
+<script src="vendor/hls.min.js" defer></script>
+<script src="api.js?v=20261103-docker1" defer></script>
+<script src="seerr-session.js?v=20261103-persist1" defer></script>
+<script src="demo.js" defer></script>
+<script src="resume.js?v=20261104-unique1" defer></script>
+<script src="offline.js" defer></script>
+<script src="detail.js?v=20261103-2" defer></script>
+<script src="app.js?v=20261104-unique1" defer></script>
+<script src="playback.js?v=20261106-seek" defer></script>
+<script src="player.js?v=20261106-seek" defer></script>
+<script src="refresh.js?v=20261104-resume2" defer></script>
+<script src="vendor/qrcode.js" defer></script>
+<script src="seerr-pairing.js?v=20261103-qr1" defer></script>
+</head>
+<body>
+
+<!-- ===================== CONNEXION ===================== -->
+<section id="screen-login" class="screen" hidden>
+  <div class="login-bg"></div>
+  <div class="login-card glass">
+    <div class="login-brand"><span class="brand-p">P</span><span class="brand-word">PLEZY</span></div>
+    <label class="field full">
+      <span>URL du serveur Jellyfin</span>
+      <input id="inServer" type="url" placeholder="http://192.168.0.89:8096" autocomplete="url">
+    </label>
+    <div class="login-cols">
+      <div class="login-col qc">
+        <h2>Quick Connect</h2>
+        <p class="muted">Ouvrez l'interface Web Jellyfin (Quick Connect) et entrez ce code à 6 chiffres :</p>
+        <div id="qcCode" class="qc-code">------</div>
+        <p id="qcStatus" class="qc-status">Saisissez l'URL du serveur puis générez un code.</p>
+        <button id="btnQc" class="btn btn-ghost">Générer un code</button>
+      </div>
+      <div class="login-col">
+        <h2>Identifiants</h2>
+        <label class="field"><span>Identifiant Jellyfin</span><input id="inUser" autocomplete="username"></label>
+        <label class="field"><span>Mot de passe</span><input id="inPass" type="password" autocomplete="current-password"></label>
+        <button id="btnLogin" class="btn btn-white">Se connecter</button>
+        <button id="btnDemo" class="btn btn-ghost">Découvrir Plezy · mode démo</button>
+        <p id="loginError" class="error" role="alert"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PRINCIPAL ===================== -->
+<section id="screen-main" class="screen" hidden>
+
+  <div class="hero-backdrop"><img id="heroImg" alt=""><div class="grad-left"></div><div class="grad-top"></div><div class="grad-bottom"></div></div>
+
+  <header class="topbar" id="topbar">
+    <button class="avatar" id="btnProfile" title="Profil">L</button>
+    <nav class="nav" id="nav" aria-label="Navigation principale">
+      <button data-page="SEARCH" class="nav-search" title="Recherche"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="lbl">Recherche</span></button>
+      <button data-page="HOME">Accueil</button>
+      <button data-page="SERIES">Séries</button>
+      <button data-page="MOVIES">Films</button>
+      <button data-page="SEERR">Nouveautés Seerr</button>
+      <button data-page="MYLIST">Mon Plezy</button>
+    </nav>
+    <button class="icon-btn" id="btnSettings" title="Réglages"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    <div class="logo-plezy">PLEZY</div>
+  </header>
+
+  <div class="main-scroll" id="mainScroll">
+    <div class="billboard" id="billboard">
+      <div class="bb-tag"><span class="brand-p sm" id="bbBrand">P</span><span id="bbCat">F I L M</span></div>
+      <img class="bb-logo" id="bbLogo" alt="" hidden>
+      <h1 class="bb-title" id="bbTitle"></h1>
+      <div class="bb-meta" id="bbMeta"></div>
+      <p class="bb-overview" id="bbOverview"></p>
+      <div class="bb-buttons">
+        <button class="btn btn-white" id="bbPlay"><svg viewBox="0 0 24 24" class="fill"><path d="M7 4v16l13-8z"/></svg><span id="bbPlayLbl">Lecture</span></button>
+        <button class="btn btn-grey" id="bbInfo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Plus d'infos</button>
+      </div>
+      <div class="bb-callout" id="bbCallout"></div>
+      <div class="bb-rating" id="bbRating">16+</div>
+    </div>
+    <div class="search-box" id="searchBox" hidden>
+      <input id="inSearch" type="search" aria-label="Rechercher un titre" placeholder="Titres, personnes, genres" autocomplete="off">
+      <p class="muted" id="searchHint"></p>
+      <div class="grid" id="searchGrid"></div>
+    </div>
+    <div id="rows"></div>
+    <div class="spacer"></div>
+  </div>
+</section>
+
+<!-- ===================== DÉTAIL ===================== -->
+<section id="screen-detail" class="screen" hidden>
+  <div class="detail-overlay" data-detail-dismiss></div>
+  <div class="detail-scroll" id="detailScroll">
+    <article class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+      <button class="detail-close" data-back title="Fermer la fiche" aria-label="Fermer la fiche"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      <div class="detail-hero">
+        <div class="detail-backdrop"><img id="dBackdrop" alt=""><div class="d-grad"></div></div>
+        <div class="detail-feature">
+          <div class="detail-brand">PLEZY</div>
+          <img id="dLogo" class="d-logo" alt="" hidden>
+          <h1 id="dTitle" class="d-title"></h1>
+          <div class="detail-resume" id="dResume" hidden>
+            <div class="detail-progress"><span id="dProgressFill"></span></div>
+            <span id="dProgressText"></span>
+          </div>
+
+
+          <div class="detail-actions">
+            <button class="detail-play" id="dPlay"><svg viewBox="0 0 24 24" class="fill"><path d="M6 3v18l15-9z"/></svg><span id="dPlayLbl">Lecture</span></button>
+            <button class="detail-round" id="dSave" title="Ajouter à ma liste" aria-label="Ajouter à ma liste"><svg viewBox="0 0 24 24" id="dSaveIcon"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="detail-round" id="dFav" title="Favori" aria-label="Favori"><svg viewBox="0 0 24 24"><path d="M8 20H4V9h4m0 11h10a2 2 0 0 0 2-1.7l1-7A2 2 0 0 0 19 9h-6l1-4a2 2 0 0 0-3-2L8 9z"/></svg></button>
+            <button class="detail-round" id="dMore" title="Plus d’options" aria-label="Plus d’options"><svg viewBox="0 0 24 24" class="fill"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+            <button class="detail-trailer" id="dSecond" hidden><span id="dSecondLbl">Bande-annonce</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="detail-content">
+        <div class="detail-summary">
+          <div class="detail-main-info">
+            <div id="dMeta" class="d-meta"></div>
+            <div id="dRating" class="detail-rating" hidden></div>
+            <h2 id="dEpHeader" class="d-ep" hidden></h2>
+            <p id="dOverview" class="d-overview"></p>
+            <p id="dDetailStatus" class="detail-status" role="status" hidden></p>
+          </div>
+          <aside class="detail-facts" aria-label="Informations du programme">
+            <p id="dCast" hidden></p>
+            <p id="dGenres" hidden></p>
+            <p id="dDirector" hidden></p>
+          </aside>
+        </div>
+        <section id="dSeasons" class="detail-section" hidden aria-labelledby="dEpisodesTitle">
+          <div class="detail-section-heading"><h2 id="dEpisodesTitle">Épisodes</h2><div id="seasonTabs" class="detail-season-picker"></div></div>
+          <div class="episode-list" id="episodeRail"></div>
+        </section>
+        <section id="dSimilarSec" class="detail-section" hidden aria-labelledby="dSimilarTitle">
+          <h2 id="dSimilarTitle">Vous aimerez aussi</h2>
+          <div class="detail-similar-grid" id="dSimilarGrid"></div>
+        </section>
+        <section id="dCastSec" class="detail-section detail-cast" hidden aria-labelledby="dCastTitle">
+          <h2 id="dCastTitle">Distribution</h2>
+          <div class="rail" id="castRail"></div>
+        </section>
+        <section class="detail-section detail-about" aria-labelledby="dAboutTitle">
+          <h2 id="dAboutTitle"></h2><div id="dAbout"></div>
+        </section>
+      </div>
+      <div hidden><button id="dWatched" title="Vu / non vu">Vu / non vu</button></div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== LECTEUR ===================== -->
+<section id="screen-player" class="screen" hidden>
+  <video id="video" playsinline preload="metadata"></video>
+  <div class="player-ui" id="playerUi">
+    <div class="p-top">
+      <button class="player-icon" id="pBack" title="Retour" aria-label="Retour"><svg viewBox="0 0 24 24"><path d="M20 12H4m8-8-8 8 8 8"/></svg></button>
+
+
+      <span id="pStream" class="p-stream" hidden></span>
+      <button class="player-icon" id="pReport" title="Aide à la lecture" aria-label="Aide à la lecture"><svg viewBox="0 0 24 24"><path d="M5 22V3c5-3 9 3 14 0v10c-5 3-9-3-14 0"/></svg></button>
+    </div>
+    <div class="pause-info" id="pPauseInfo" hidden>
+      <p class="pause-eyebrow">Vous regardez</p>
+      <h1 id="pPauseTitle"></h1>
+      <p id="pPauseSeries" class="pause-series"></p>
+      <h2 id="pPauseEpisode"></h2>
+      <p id="pPauseOverview" class="pause-overview"></p>
+      <span class="pause-label">En pause</span>
+    </div>
+    <div class="playback-notice" id="pNotice" role="status">
+      <span class="player-spinner" id="pSpinner"></span>
+      <h2 id="pNoticeTitle">Préparation de la lecture…</h2>
+      <p id="pNoticeText"></p>
+      <div id="pRecovery" hidden>
+        <button class="btn btn-white" id="pRetry">Réessayer</button>
+        <button class="btn btn-ghost" id="pCompatible">Essayer en qualité compatible</button>
+      </div>
+    </div>
+    <div class="player-bottom">
+      <div class="p-timeline">
+
+        <div class="p-bar" id="pBar" role="slider" tabindex="0" aria-label="Position de lecture" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0"><div class="p-segs" id="pSegs"></div><div class="p-buf" id="pBuf"></div><div class="p-fill" id="pFill"></div><div class="p-knob" id="pKnob"></div></div>
+        <span id="pRem" class="p-remaining">0:00</span>
+      </div>
+      <div class="player-controls">
+        <div class="player-transport">
+          <button class="player-icon play-toggle" id="pPlay" title="Lecture / Pause" aria-label="Lecture"><svg viewBox="0 0 24 24" class="fill" id="pPlayIco"><path d="M7 3v18l15-9z"/></svg></button>
+
+          <button class="player-icon skip-button" id="pRew" title="Reculer de 10 secondes" aria-label="Reculer de 10 secondes"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 0 5M4 4v6h6"/></svg><b>10</b></button>
+          <button class="player-icon skip-button" id="pFwd" title="Avancer de 10 secondes" aria-label="Avancer de 10 secondes"><svg viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0 0 5M20 4v6h-6"/></svg><b>10</b></button>
+          <div class="player-volume">
+            <button class="player-icon" id="pMute" title="Couper le son" aria-label="Couper le son"><svg viewBox="0 0 24 24" id="pMuteIco"><path d="M11 4 6 8H2v8h4l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg></button>
+            <input id="pVolume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+          </div>
+        </div>
+
+        <div class="player-now" aria-live="off"><strong id="pTitle"></strong><span id="pSub"></span></div>
+        <div class="player-tools">
+          <button class="player-icon" id="pNext" title="Épisode suivant" aria-label="Épisode suivant" hidden><svg viewBox="0 0 24 24"><path d="m4 4 13 8L4 20zM20 4v16"/></svg></button>
+
+          <button class="player-icon" id="pEpisodes" title="Épisodes" aria-label="Épisodes" hidden><svg viewBox="0 0 24 24"><rect x="2" y="9" width="14" height="11" rx="1"/><path d="M6 5h14v11M10 1h14v11"/></svg></button>
+          <button class="player-icon" id="pTracks" title="Audio et sous-titres" aria-label="Audio et sous-titres"><svg viewBox="0 0 24 24"><path d="M3 3h18v14h-5l-4 4-4-4H3zM6 8h5m3 0h4M6 12h12"/></svg></button>
+          <button class="player-icon" id="pSpeed" title="Vitesse de lecture" aria-label="Vitesse de lecture"><svg viewBox="0 0 24 24"><path d="M4 20a10 10 0 1 1 16 0M12 12l6-6"/><circle cx="12" cy="12" r="2"/></svg></button>
+          <button class="player-icon" id="pSettings" title="Réglages de lecture" aria-label="Réglages de lecture"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="#000"/><circle cx="15" cy="17" r="3" fill="#000"/></svg></button>
+          <button class="player-icon" id="pFull" title="Plein écran" aria-label="Plein écran"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+        </div>
+      </div>
+      <div class="player-footnote"><span id="pCur">0:00</span><span id="pChapter"></span><span id="pEnds"></span></div>
+    </div>
+  </div>
+  <div hidden><button id="pAudio">Audio</button><button id="pSubs">Sous-titres</button><button id="pQuality">Qualité</button><button id="pChapters">Chapitres</button><button id="pAspect">Format : original</button></div>
+</section>
+
+<!-- ===================== MODALE & TOAST ===================== -->
+<div id="modal" class="modal" hidden><div class="modal-card glass" id="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

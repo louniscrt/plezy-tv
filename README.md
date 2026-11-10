@@ -191,3 +191,7 @@ Ce dépôt inclut également la suite d'optimisation **CleanYourTV** pour déblo
 ## 📄 Licence & Contribution
 
 Projet distribué sous licence **MIT**. Les contributions, signalements de bugs et suggestions via les Issues ou Pull Requests sont les bienvenues !
+
+## Lecture Stremio et Real-Debrid
+
+La version 2.3 ajoute la lecture intégrée via plusieurs addons Stremio, sans changer les interfaces Android et web. La web app se trouve dans [`webapp/`](webapp/). Consultez le [guide de configuration privée](docs/STREMIO.md) pour activer Real-Debrid ; aucune clé personnelle n’est incluse dans le dépôt ou dans l’APK.

@@ -1,0 +1,148 @@
+/* Fiches de films et séries : grand visuel, contenu éditorial et épisodes en liste. */
+#screen-detail{z-index:40;--detail-bg:#181818;--detail-muted:#aaa;--detail-inset:clamp(22px,3.5vw,48px)}
+#screen-detail .detail-overlay{position:absolute;inset:0;background:#000b;backdrop-filter:blur(2px)}
+#screen-detail .detail-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:28px 24px 64px;scroll-padding-top:30px;overscroll-behavior:contain;scrollbar-color:#777 #111}
+#screen-detail .detail-panel{position:relative;width:min(1180px,100%);margin:0 auto;background:var(--detail-bg);border-radius:12px;box-shadow:0 24px 90px #000c;overflow:hidden;min-height:400px}
+#screen-detail .detail-close{position:absolute;top:18px;right:18px;z-index:5;display:grid;place-items:center;width:40px;height:40px;min-height:40px;border-radius:50%;background:#181818dd;color:#fff}
+#screen-detail .detail-close:hover{background:#333}
+#screen-detail .detail-close svg{width:24px;height:24px}
+#screen-detail .detail-hero{position:relative;aspect-ratio:16/9;min-height:380px;isolation:isolate}
+#screen-detail .detail-backdrop{position:absolute;inset:0;background:radial-gradient(ellipse at 60% 20%,#343848,#181818 80%);pointer-events:none}
+#screen-detail .detail-backdrop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%}
+#screen-detail .d-grad{position:absolute;inset:0;background:linear-gradient(0deg,var(--detail-bg) 0%,#181818d9 8%,#18181840 40%,transparent 70%),linear-gradient(90deg,#0005,transparent 75%)}
+#screen-detail .detail-feature{position:absolute;left:var(--detail-inset);right:var(--detail-inset);bottom:clamp(36px,5vw,68px);display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+#screen-detail .detail-brand{color:#e50914;font-size:16px;font-weight:800;letter-spacing:.09em}
+#screen-detail .d-title{font-size:clamp(34px,5vw,70px);line-height:1.02;font-weight:800;letter-spacing:-.035em;max-width:85%;text-shadow:0 2px 16px #0006}
+#screen-detail .d-logo{width:auto;max-width:min(600px,70%);max-height:160px;object-fit:contain;object-position:left;filter:drop-shadow(0 2px 6px #0005)}
+#screen-detail .detail-title-fallback{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap}
+#screen-detail .detail-resume{display:flex;align-items:center;gap:10px;width:min(500px,85%);margin-top:22px;font-size:13px;font-weight:600;color:#ddd;font-variant-numeric:tabular-nums;white-space:nowrap}
+#screen-detail .detail-progress{height:3px;background:#ffffff55;flex:1;min-width:50px}
+#screen-detail .detail-progress span{height:100%;display:block;background:#e50914}
+#screen-detail .detail-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;width:100%;margin-top:2px}
+#screen-detail .detail-play{display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:10px 26px;min-height:46px;min-width:160px;border-radius:4px;font-size:16px;font-weight:700;background:#fff;color:#090909}
+#screen-detail .detail-play:hover{background:#ddd}
+#screen-detail .detail-play:disabled{cursor:default;background:#ddddddd9}
+#screen-detail .detail-play svg{width:25px;height:25px}
+#screen-detail .detail-round{display:grid;place-items:center;width:40px;height:40px;min-height:40px;flex:none;border:2px solid #ffffff66;border-radius:50%;background:#3339;color:#fff}
+#screen-detail .detail-round svg{width:22px;height:22px;stroke-width:1.7}
+#screen-detail .detail-round:hover{border-color:#fff;background:#555b}
+#screen-detail .detail-round.on{border-color:#fff;background:#ffffff20;color:#fff}
+#screen-detail .detail-trailer{display:inline-flex;align-items:center;min-height:44px;padding:9px 15px;border-radius:4px;background:#ffffff25;font-size:13px;font-weight:600}
+#screen-detail .detail-content{position:relative;padding:0 var(--detail-inset) 46px;margin-top:-8px}
+#screen-detail .detail-summary{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:clamp(20px,4vw,56px);padding-bottom:20px}
+#screen-detail .d-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;color:#bcbcbc;font-size:15px;line-height:1.5;margin:0 0 9px}
+#screen-detail .detail-badge{padding:0 4px;border:1px solid #888;border-radius:2px;font-size:10px;line-height:1.3;color:#ddd;font-weight:500}
+#screen-detail .detail-rating{font-size:13px;color:#fff;display:flex;align-items:center;gap:8px;margin-bottom:24px}
+#screen-detail .detail-age{padding:0 6px;border:1px solid #999;line-height:1.4;font-size:12px}
+#screen-detail .d-ep{font-size:18px;font-weight:700;line-height:1.5;color:#fff;margin-bottom:14px}
+#screen-detail .d-overview{font-size:16px;line-height:1.65;color:#f1f1f1;margin:0}
+#screen-detail .detail-facts{display:flex;flex-direction:column;gap:15px;padding-top:2px;color:#f0f0f0;font-size:13px;line-height:1.6;min-width:0}
+#screen-detail .detail-fact-label{color:#8d8d8d}
+#screen-detail .detail-text-link{display:inline;min-height:0;font-size:inherit;font-style:italic;line-height:inherit;text-decoration:none}
+#screen-detail .detail-text-link:hover{text-decoration:underline}
+#screen-detail .detail-status{font-size:13px;color:#c7c7c7;margin-top:12px;line-height:1.5}
+#screen-detail .detail-section{padding:24px 0 8px;scroll-margin-top:30px}
+#screen-detail .detail-section>h2,#screen-detail .detail-section-heading h2{font-size:24px;font-weight:700;line-height:1.4;margin-bottom:16px;letter-spacing:-.025em}
+#screen-detail .detail-section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+#screen-detail .detail-section-heading h2{margin:0}
+#screen-detail .detail-season-picker select{display:block;background:#242424;color:#fff;border:1px solid #666;border-radius:3px;padding:10px 34px 10px 16px;max-width:280px;font-size:15px;font-weight:600;cursor:pointer}
+#screen-detail .episode-list{border-top:1px solid #3e3e3e}
+#screen-detail .detail-episode{display:grid;grid-template-columns:34px minmax(110px,190px) minmax(0,1fr);gap:18px;align-items:center;width:100%;min-height:140px;padding:18px 12px;border-bottom:1px solid #3e3e3e;text-align:left;border-radius:4px;transition:background .15s}
+#screen-detail .detail-episode:hover{background:#292929}
+#screen-detail .detail-episode.current{background:#2c2c2c}
+#screen-detail .detail-episode-number{font-size:23px;color:#bcbcbc;text-align:center;font-weight:400}
+#screen-detail .detail-episode-thumb{position:relative;aspect-ratio:16/9;display:block;border-radius:4px;overflow:hidden;background:#2a2a2a}
+#screen-detail .detail-episode-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+#screen-detail .detail-episode-play{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity .15s;background:#0002}
+#screen-detail .detail-episode:hover .detail-episode-play,#screen-detail .detail-episode:focus-visible .detail-episode-play{opacity:1}
+#screen-detail .detail-episode-play svg{width:38px;height:38px;border:2px solid white;border-radius:50%;padding:8px;background:#0008;fill:#fff;stroke:none}
+#screen-detail .detail-episode-info{min-width:0;display:flex;flex-direction:column;gap:8px}
+#screen-detail .detail-episode-heading{display:flex;align-items:baseline;justify-content:space-between;gap:15px;line-height:1.4;font-size:15px}
+#screen-detail .detail-episode-heading strong{font-weight:700}
+#screen-detail .detail-episode-runtime{font-size:13px;white-space:nowrap;color:#ddd}
+#screen-detail .detail-episode-overview{font-size:13px;color:#d0d0d0;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#screen-detail .detail-episode-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:#ffffff4d}
+#screen-detail .detail-episode-progress i{display:block;height:100%;background:#e50914}
+#screen-detail .detail-empty{padding:28px 12px;color:#bcbcbc;font-size:14px;line-height:1.6}
+#screen-detail .detail-retry{margin:0 12px 20px;padding:10px 20px;background:#fff;color:#181818;border-radius:4px;font-weight:600}
+#screen-detail .detail-similar-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+#screen-detail .detail-similar-card{display:flex;flex-direction:column;text-align:left;background:#2c2c2c;border-radius:5px;overflow:hidden;transition:background .15s}
+#screen-detail .detail-similar-card:hover{background:#373737}
+#screen-detail .detail-similar-cover{aspect-ratio:16/9;display:block;background:#242424;width:100%;overflow:hidden}
+#screen-detail .detail-similar-cover img{width:100%;height:100%;object-fit:cover;display:block}
+#screen-detail .detail-similar-info{display:flex;flex-direction:column;gap:8px;padding:16px;min-width:0}
+#screen-detail .detail-similar-info strong{font-size:16px;font-weight:700;line-height:1.35}
+#screen-detail .detail-similar-year{font-size:13px;color:#bbb}
+#screen-detail .detail-similar-overview{font-size:13px;line-height:1.6;color:#d0d0d0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#screen-detail .detail-cast .rail{gap:18px;overflow-x:auto;scrollbar-width:thin;padding:0 0 14px;max-width:100%}
+#screen-detail .detail-person{display:flex;flex-direction:column;gap:6px;width:110px;flex:none;font-size:12px;line-height:1.4}
+#screen-detail .detail-person-photo{position:relative;aspect-ratio:3/4;border-radius:4px;background:#292929;overflow:hidden;display:grid;place-items:center;color:#999;font-size:32px}
+#screen-detail .detail-person-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#screen-detail .detail-person strong{font-weight:600}
+#screen-detail .detail-person>span{color:#aaa}
+#screen-detail .detail-about{padding-top:32px;border-top:1px solid #363636;margin-top:28px}
+#screen-detail .detail-about p{font-size:13px;line-height:1.7;color:#d0d0d0;margin-bottom:12px;max-width:900px}
+@media(min-width:641px) and (max-width:1000px){
+ #screen-detail .detail-scroll{padding:18px 20px 40px}
+ #screen-detail .detail-hero{min-height:360px}
+ #screen-detail .detail-summary{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:24px}
+ #screen-detail .detail-feature{bottom:40px}
+ #screen-detail .detail-episode{grid-template-columns:26px 160px minmax(0,1fr);padding:16px 8px;gap:14px}
+ #screen-detail .detail-similar-grid{gap:12px}
+}
+@media(max-width:640px){
+ #screen-detail{--detail-inset:20px}
+ #screen-detail .detail-overlay{background:#000c;backdrop-filter:none}
+ #screen-detail .detail-scroll{padding:0;scroll-padding-top:16px}
+ #screen-detail .detail-panel{width:100%;min-height:100dvh;border-radius:0;margin:0;box-shadow:none}
+ #screen-detail .detail-hero{aspect-ratio:auto;height:clamp(330px,60dvh,480px);min-height:330px}
+ #screen-detail .detail-backdrop img{object-position:60% center}
+ #screen-detail .detail-feature{bottom:30px;gap:9px}
+ #screen-detail .detail-close{top:max(12px,env(safe-area-inset-top));right:12px;width:38px;height:38px;min-height:38px}
+ #screen-detail .detail-brand{font-size:13px}
+ #screen-detail .d-title{font-size:36px;max-width:100%}
+ #screen-detail .d-logo{max-width:90%;max-height:100px}
+ #screen-detail .detail-resume{width:100%;max-width:360px;font-size:11px;margin-top:14px;gap:9px}
+ #screen-detail .detail-actions{gap:8px}
+ #screen-detail .detail-play{min-width:0;flex:1;max-width:190px;padding:11px 15px;min-height:44px;font-size:14px;gap:9px}
+ #screen-detail .detail-play svg{width:22px;height:22px}
+ #screen-detail .detail-round{width:40px;height:40px;min-height:40px}
+ #screen-detail .detail-trailer{font-size:12px;padding:8px 10px;width:100%;justify-content:center;max-width:190px}
+ #screen-detail .detail-content{padding-bottom:max(35px,env(safe-area-inset-bottom));margin-top:-4px}
+ #screen-detail .detail-summary{display:flex;flex-direction:column;gap:20px;padding-bottom:8px}
+ #screen-detail .d-meta{font-size:13px;margin-bottom:9px;gap:7px 9px}
+ #screen-detail .detail-rating{margin-bottom:18px;font-size:12px}
+ #screen-detail .d-ep{font-size:16px;margin-bottom:10px}
+ #screen-detail .d-overview{font-size:14px;line-height:1.65}
+ #screen-detail .detail-facts{font-size:12px;gap:8px;line-height:1.5}
+ #screen-detail .detail-section{padding-top:25px;scroll-margin-top:20px}
+ #screen-detail .detail-section>h2,#screen-detail .detail-section-heading h2{font-size:21px;margin-bottom:14px}
+ #screen-detail .detail-section-heading{gap:12px;margin-bottom:10px}
+ #screen-detail .detail-section-heading h2{margin:0}
+ #screen-detail .detail-season-picker select{max-width:190px;font-size:13px;padding:9px 24px 9px 12px}
+ #screen-detail .detail-episode{grid-template-columns:20px 108px minmax(0,1fr);gap:10px;padding:16px 0;min-height:116px;align-items:start;border-radius:0}
+ #screen-detail .detail-episode-number{font-size:17px;padding-top:20px}
+ #screen-detail .detail-episode-info{gap:6px}
+ #screen-detail .detail-episode-heading{display:flex;flex-direction:column;gap:3px;font-size:13px}
+ #screen-detail .detail-episode-runtime{font-size:11px}
+ #screen-detail .detail-episode-overview{font-size:12px;line-height:1.45;-webkit-line-clamp:3}
+ #screen-detail .detail-episode.current{background:linear-gradient(90deg,transparent,#ffffff0a)}
+ #screen-detail .detail-similar-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ #screen-detail .detail-similar-info{padding:12px;gap:6px}
+ #screen-detail .detail-similar-info strong{font-size:13px}
+ #screen-detail .detail-similar-overview{font-size:12px;-webkit-line-clamp:3}
+ #screen-detail .detail-person{width:96px;font-size:11px}
+ #screen-detail .detail-cast .rail{gap:12px}
+ #screen-detail .detail-about p{font-size:12px}
+}
+@media(max-width:360px){#screen-detail{--detail-inset:16px}#screen-detail .detail-episode{grid-template-columns:18px 96px minmax(0,1fr);gap:8px}#screen-detail .detail-episode-overview{-webkit-line-clamp:4}#screen-detail .detail-round{width:36px;height:36px;min-height:36px}}
+@media(orientation:landscape) and (max-height:500px){#screen-detail .detail-scroll{padding:14px 20px 30px}#screen-detail .detail-hero{height:auto;aspect-ratio:16/9;min-height:320px}#screen-detail .detail-feature{bottom:35px}#screen-detail .d-title{font-size:40px}}
+/* La fermeture reste accessible pendant le défilement de la fiche. */
+#screen-detail .detail-close{position:fixed;top:46px;right:max(42px,calc((100vw - 1180px)/2 + 18px))}
+@media(min-width:641px) and (max-width:1000px){#screen-detail .detail-close{top:36px;right:38px}}
+@media(max-width:640px){#screen-detail .detail-close{top:max(12px,env(safe-area-inset-top));right:12px}}
+@media(orientation:landscape) and (max-height:500px) and (min-width:641px){#screen-detail .detail-close{top:32px}}
+/* Neutraliser l'ancienne hauteur TV et garder la fiche mobile bord à bord. */
+#screen-detail .detail-backdrop{height:100%}
+@media(max-width:640px){#screen-detail .detail-scroll{scrollbar-width:none}#screen-detail .detail-scroll::-webkit-scrollbar{display:none}}
+@media(min-width:641px) and (max-width:1000px){#screen-detail .detail-close{right:53px}}

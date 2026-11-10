@@ -1,0 +1,8 @@
+*
+!Dockerfile
+!package.json
+!server.js
+!pairing.js
+!public/
+!public/**
+!stremio.js

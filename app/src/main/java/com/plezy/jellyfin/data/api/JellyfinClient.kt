@@ -2,6 +2,7 @@ package com.plezy.jellyfin.data.api
 
 import android.content.Context
 import android.os.Build
+import com.plezy.jellyfin.BuildConfig
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.plezy.jellyfin.data.model.CastMember
@@ -11,6 +12,9 @@ import com.plezy.jellyfin.data.model.MediaItem
 import com.plezy.jellyfin.data.model.MediaTrack
 import com.plezy.jellyfin.data.model.MediaType
 import com.plezy.jellyfin.util.CodecDetector
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -33,6 +37,9 @@ import java.util.concurrent.TimeUnit
  */
 class JellyfinClient(context: Context) {
 
+    val stremio = StremioClient(context)
+    private fun hasJellyfin() = serverUrl.isNotBlank() && accessToken.isNotBlank() && userId.isNotBlank()
+
     private val prefs = context.getSharedPreferences("plezy_jellyfin_prefs", Context.MODE_PRIVATE)
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
@@ -41,7 +48,7 @@ class JellyfinClient(context: Context) {
         .build()
 
     var serverUrl: String
-        get() = prefs.getString("server_url", null)?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: ""
+        get() = prefs.getString("server_url", null)?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: BuildConfig.JELLYFIN_SERVER_URL
         set(value) = prefs.edit().putString("server_url", value.trim().trimEnd('/')).apply()
 
     var accessToken: String
@@ -69,7 +76,7 @@ class JellyfinClient(context: Context) {
         saved
     }
 
-    fun isConfigured(): Boolean = isDemoMode || (serverUrl.isNotBlank() && accessToken.isNotBlank() && userId.isNotBlank())
+    fun isConfigured(): Boolean = stremio.enabled || isDemoMode || hasJellyfin()
 
     /**
      * Nettoie le nom de l'appareil pour éviter les caractères invalides dans l'en-tête HTTP
@@ -342,17 +349,45 @@ class JellyfinClient(context: Context) {
         }
     }
 
+    private suspend fun mergeStremio(types: List<String>, query: String = "", limit: Int = 100, native: suspend () -> List<MediaItem>): List<MediaItem> = coroutineScope {
+        if (!stremio.enabled) return@coroutineScope native()
+        val own = async { stremio.engine.catalog(types, query, limit).map(stremio::decorate) }
+        val existing = if (hasJellyfin() && !isDemoMode) native() else emptyList()
+        (existing + own.await()).distinctBy { it.id }
+    }
+    suspend fun getRecentlyAddedMovies(): List<MediaItem> = mergeStremio(listOf("movie")) { nativegetRecentlyAddedMovies() }
+    suspend fun getRecentlyAdded(includeItemTypes: String = "Series"): List<MediaItem> = mergeStremio(if (includeItemTypes == "Series") listOf("series") else listOf("movie")) { nativegetRecentlyAdded(includeItemTypes) }
+    suspend fun searchItems(query: String): List<MediaItem> {
+        if (query.isBlank()) return emptyList()
+        return mergeStremio(listOf("movie", "series"), query, 100) { nativesearchItems(query) }
+    }
+    suspend fun getLibraryCatalog(tab: String = "Browse", includeItemTypes: String = "Series", sortBy: String = "SortName", sortOrder: String = "Ascending", onlyUnplayed: Boolean = false, limit: Int = 60): List<MediaItem> {
+        val native = suspend { nativegetLibraryCatalog(tab, includeItemTypes, sortBy, sortOrder, onlyUnplayed, limit) }
+        if (tab in listOf("Collections", "Playlists")) return if (hasJellyfin() || !stremio.enabled) native() else emptyList()
+        val types = listOfNotNull(if (includeItemTypes.contains("Movie")) "movie" else null, if (includeItemTypes.contains("Series")) "series" else null)
+        val result = mergeStremio(types, limit = limit, native = native).filter { !onlyUnplayed || !it.isPlayed }
+        return when {
+            tab == "Recommended" || sortBy == "CommunityRating" -> result.sortedByDescending { it.communityRating ?: 0.0 }
+            sortBy == "SortName" -> if (sortOrder == "Descending") result.sortedByDescending { it.title } else result.sortedBy { it.title }
+            sortBy == "ProductionYear" -> result.sortedByDescending { it.productionYear ?: 0 }
+            else -> result
+        }.take(limit)
+    }
+    suspend fun playbackStreams(item: MediaItem): List<StremioEngine.Stream> = if (StremioClient.owns(item.id)) stremio.engine.streams(item.id) else listOf(StremioEngine.Stream(buildPlaybackUrl(item)))
+
     suspend fun getContinueWatching(): List<MediaItem> = withContext(Dispatchers.IO) {
+        val own = stremio.history().filter { it.playbackPositionTicks > 0 && !it.isPlayed }
+        if (stremio.enabled && !hasJellyfin()) return@withContext own
         if (isDemoMode || !isConfigured()) return@withContext DemoCatalog.continueWatching
         val resumeEndpoint = "$serverUrl/Users/$userId/Items/Resume?Limit=12&Recursive=true" +
                 "&Fields=Overview,PrimaryImageAspectRatio,MediaSources,Chapters,CommunityRating,CriticRating,OfficialRating,Genres,People,PremiereDate" +
                 "&MediaTypes=Video"
         val resumed = fetchItemsList(resumeEndpoint)
 
-        resumed.distinctBy { it.id }
+        (resumed + own).distinctBy { it.id }
     }
 
-    suspend fun getRecentlyAddedMovies(): List<MediaItem> = withContext(Dispatchers.IO) {
+    private suspend fun nativegetRecentlyAddedMovies(): List<MediaItem> = withContext(Dispatchers.IO) {
         if (isDemoMode || !isConfigured()) return@withContext DemoCatalog.movies
         val endpoint = "$serverUrl/Users/$userId/Items?Recursive=true&IncludeItemTypes=Movie" +
                 "&SortBy=DateCreated,SortName&SortOrder=Descending&Limit=20" +
@@ -360,7 +395,7 @@ class JellyfinClient(context: Context) {
         fetchItemsList(endpoint)
     }
 
-    suspend fun getRecentlyAdded(includeItemTypes: String = "Series"): List<MediaItem> = withContext(Dispatchers.IO) {
+    private suspend fun nativegetRecentlyAdded(includeItemTypes: String = "Series"): List<MediaItem> = withContext(Dispatchers.IO) {
         if (isDemoMode || !isConfigured()) return@withContext DemoCatalog.recentlyAddedShows
         val endpoint = "$serverUrl/Users/$userId/Items?Recursive=true&IncludeItemTypes=$includeItemTypes" +
                 "&SortBy=DateCreated,SortName&SortOrder=Descending&Limit=20" +
@@ -372,7 +407,7 @@ class JellyfinClient(context: Context) {
      * Catalogue filtrable par onglet Plezy (Recommended, Browse, Collections, Playlists),
      * par type (Series, Movie) et par tri (SortName, CommunityRating, DateCreated, ProductionYear).
      */
-    suspend fun getLibraryCatalog(
+    private suspend fun nativegetLibraryCatalog(
         tab: String = "Browse",
         includeItemTypes: String = "Series",
         sortBy: String = "SortName",
@@ -415,7 +450,7 @@ class JellyfinClient(context: Context) {
     /**
      * Recherche globale Jellyfin (Films, Séries, Épisodes)
      */
-    suspend fun searchItems(query: String): List<MediaItem> = withContext(Dispatchers.IO) {
+    private suspend fun nativesearchItems(query: String): List<MediaItem> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         if (isDemoMode || !isConfigured()) {
             val all = DemoCatalog.continueWatching + DemoCatalog.libraryShows + DemoCatalog.movies
@@ -433,6 +468,7 @@ class JellyfinClient(context: Context) {
     }
 
     suspend fun getEpisodesBySeason(seriesId: String): Map<Int, List<MediaItem>> = withContext(Dispatchers.IO) {
+        if (StremioClient.owns(seriesId)) return@withContext stremio.engine.episodes(seriesId).mapValues { (_, items) -> items.map(stremio::decorate) }
         if (seriesId.startsWith("seerr_")) return@withContext emptyMap()
         if (isDemoMode || !isConfigured()) return@withContext DemoCatalog.getSeasonsForSeries(seriesId)
         val endpoint = "$serverUrl/Shows/$seriesId/Episodes?UserId=$userId" +
@@ -445,6 +481,7 @@ class JellyfinClient(context: Context) {
      * Marque un média comme Vu ou Non-vu sur le serveur Jellyfin (`✓` sur `tv-md`)
      */
     suspend fun setPlayedStatus(itemId: String, played: Boolean): Boolean = withContext(Dispatchers.IO) {
+        if (StremioClient.owns(itemId)) { val item = stremio.engine.details(itemId) ?: stremio.history().firstOrNull { it.id == itemId } ?: return@withContext false; stremio.remember(item, played = played); return@withContext true }
         if (isDemoMode || !isConfigured()) return@withContext true
         try {
             val authHeader = buildAuthHeader()
@@ -469,6 +506,11 @@ class JellyfinClient(context: Context) {
      * Envoie la progression de lecture au serveur Jellyfin pour alimenter "Continue Watching"
      */
     suspend fun reportPlaybackProgress(itemId: String, positionTicks: Long, isPaused: Boolean, event: String = "Progress") = withContext(Dispatchers.IO) {
+        if (StremioClient.owns(itemId)) {
+            val item = stremio.history().firstOrNull { it.id == itemId } ?: stremio.engine.details(itemId)
+            if (item != null) stremio.remember(item, position = positionTicks)
+            return@withContext
+        }
         if (isDemoMode || !isConfigured()) return@withContext
         try {
             val payload = JsonObject().apply {
@@ -502,6 +544,7 @@ class JellyfinClient(context: Context) {
         audioStreamIndex: Int? = null,
         subtitleStreamIndex: Int? = null
     ): String {
+        check(!StremioClient.owns(item.id)) { "La lecture Stremio nécessite la résolution des addons." }
         if (isDemoMode || serverUrl.isBlank()) {
             return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
         }
@@ -539,6 +582,7 @@ class JellyfinClient(context: Context) {
     }
 
     suspend fun getItemDetails(id: String): MediaItem? = withContext(Dispatchers.IO) {
+        if (StremioClient.owns(id)) return@withContext (stremio.engine.details(id) ?: stremio.history().firstOrNull { it.id == id })?.let(stremio::decorate)
         if (isDemoMode) return@withContext null
         try {
             val request = Request.Builder().url("$serverUrl/Users/$userId/Items/$id")
@@ -560,6 +604,7 @@ class JellyfinClient(context: Context) {
     }
 
     suspend fun setFavorite(id: String, favorite: Boolean): Boolean = withContext(Dispatchers.IO) {
+        if (StremioClient.owns(id)) { val item = stremio.engine.details(id) ?: return@withContext false; stremio.remember(item, favorite = favorite); return@withContext true }
         if (isDemoMode) return@withContext true
         try {
             val builder = Request.Builder().url("$serverUrl/Users/$userId/FavoriteItems/$id")

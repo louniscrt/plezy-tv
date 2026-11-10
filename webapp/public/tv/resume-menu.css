@@ -1,0 +1,23 @@
+/* Only the resume carousel changes. The header and billboard keep their previous layout. */
+html.plezy-cinema #screen-main .resume-row{--resume-height:clamp(230px,35vh,400px);--poster-width:calc(var(--resume-height)*.667);--feature-width:calc(var(--resume-height)*1.778)}
+html.plezy-cinema #screen-main .resume-row .resume-card,
+html.plezy-cinema #screen-main .resume-row .resume-card:hover,
+html.plezy-cinema #screen-main .resume-row .resume-card:focus{flex:0 0 var(--poster-width);background:transparent;outline:none!important;box-shadow:none!important;border-radius:6px;transform:none;transition:none;contain:layout style}
+html.plezy-cinema #screen-main .resume-row .resume-card.resume-selected{flex-basis:var(--feature-width)}
+html.plezy-cinema #screen-main .resume-row .resume-cover{height:var(--resume-height);border-radius:6px;outline:none;isolation:isolate;background:#17171c}
+html.plezy-cinema #screen-main .resume-row .resume-card.resume-selected .resume-cover{outline:3px solid #fff;outline-offset:0}
+html.plezy-cinema #screen-main .resume-row .resume-cover:after{content:'';position:absolute;inset:45% 0 0;background:linear-gradient(transparent,#0009);pointer-events:none;z-index:1}
+html.plezy-cinema #screen-main .resume-row .resume-cover .resume-poster{display:block;z-index:3}
+html.plezy-cinema #screen-main .resume-row .resume-selected .resume-poster{display:none}
+html.plezy-cinema #screen-main .resume-row .resume-cover .t-name{display:none}
+html.plezy-cinema #screen-main .resume-row .resume-cover .resume-title{display:none;position:absolute;left:22px;right:22px;bottom:24px;z-index:2;text-align:left;font-family:Georgia,serif;font-size:clamp(28px,3vw,48px);line-height:.98;font-weight:700;text-transform:uppercase;text-shadow:0 2px 12px #000b;max-width:85%}
+html.plezy-cinema #screen-main .resume-row .resume-cover img.resume-title-logo{display:none;inset:auto auto 25px 22px;width:65%;height:28%;object-fit:contain;object-position:left bottom;z-index:2}
+html.plezy-cinema #screen-main .resume-row .resume-selected .resume-title,
+html.plezy-cinema #screen-main .resume-row .resume-selected img.resume-title-logo{display:block}
+html.plezy-cinema #screen-main .resume-row .resume-cover .t-prog{z-index:4;height:5px;bottom:0;left:0;right:0;background:#eee}
+html.plezy-cinema #screen-main .resume-row .resume-cover .t-prog i{background:#e50914}
+html.plezy-cinema #screen-main .resume-row .resume-caption{visibility:hidden;min-height:55px;padding:10px 2px 0;gap:3px;font-size:15px;color:#eee}
+html.plezy-cinema #screen-main .resume-row .resume-selected .resume-caption{visibility:visible}
+html.plezy-cinema #screen-main .resume-row .resume-caption strong{font-size:16px;font-weight:600}
+
+@media(prefers-reduced-motion:reduce){html.plezy-cinema #screen-main .resume-row .resume-card{transition:none}}

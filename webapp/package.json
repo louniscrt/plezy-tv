@@ -1,0 +1,8 @@
+{
+  "name": "plezy-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plezy pour PC, téléphone et tablette",
+  "scripts": {"start": "node server.js", "test": "node --test test/*.test.js"},
+  "engines": {"node": ">=20"}
+}
