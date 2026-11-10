@@ -12,7 +12,7 @@
     return (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + String(Math.floor(s / 60) % 60).padStart(s >= 3600 ? 2 : 1, '0') + ':' + String(s % 60).padStart(2, '0');
   };
   const position = () => (video.currentTime || 0) + offset;
-  const duration = () => item?.demo ? (Number.isFinite(video.duration) ? video.duration : 0) : item?.RunTimeTicks / 10000000 || (Number.isFinite(video.duration) ? video.duration + offset : 0);
+  const duration = () => item?.demo ? (Number.isFinite(video.duration) ? video.duration : 0) : plan?.duration || item?.RunTimeTicks / 10000000 || (Number.isFinite(video.duration) ? video.duration + offset : 0);
   function report(event = 'Progress') {
     if (!item || item.demo || item.offline || !plan || !started && event !== '') return Promise.resolve();
     return A.jf('/Sessions/Playing' + (event ? '/' + event : ''), { method: 'POST', body: {
@@ -94,6 +94,11 @@
       offset = plan.offset || 0;
       text('pStream', active.demo ? 'Démonstration' : active.offline ? 'Hors connexion' : plan.method === 'DirectPlay' ? 'Lecture directe' : 'Lecture compatible · HLS');
       video.onloadedmetadata = () => {
+        if (active.stremio && video.audioTracks) {
+          const tracks = Array.from(video.audioTracks);
+          const french = tracks.find(t => /^(fr|fra|fre)(?:-|$)/i.test(t.language || '') || /fran[cç]ais|french/i.test(t.label || ''));
+          if (french) tracks.forEach(t => { t.enabled = t === french; });
+        }
         if (version !== loadGeneration || item !== active) return;
         clearTimeout(startupTimer); switching = false;
         if (desiredStart > offset) {
@@ -179,7 +184,8 @@
   function seek(target) {
     if (!item || !duration()) return;
     const at = Math.max(0, Math.min(duration() - .1, target));
-    if (plan?.hls && (at < offset || !Number.isFinite(video.duration) || at - offset > video.duration)) run(() => load(at, true));
+    if (plan?.remux) run(() => load(at, 'seek'));
+    else if (plan?.hls && (at < offset || !Number.isFinite(video.duration) || at - offset > video.duration)) run(() => load(at, true));
     else { desiredStart = at; video.currentTime = Math.max(0, at - offset); }
     wake();
   }

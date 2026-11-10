@@ -69,7 +69,7 @@
       item.Type === 'Series' ? 'Série' : item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 36000000000) + ' h ' + Math.round(item.RunTimeTicks / 600000000) % 60 + ' min' : 'Film', ...(item.Genres || []).slice(0, 2)].filter(Boolean).join(' · ');
   }
   function status(item) { const s = item.mediaInfo?.status; return s === 5 ? 'Disponible' : s === 4 ? 'Partiellement disponible' : requested.has(item.Id) || s === 2 || s === 3 ? 'Demandé' : 'À demander'; }
-  function playLabel(item) { return item.seerr ? status(item) === 'Disponible' || status(item) === 'Partiellement disponible' ? 'Voir dans Jellyfin' : status(item) === 'Demandé' ? 'Demande en cours' : 'Demander' : item.Type === 'Series' ? 'Voir les épisodes' : item.UserData?.PlaybackPositionTicks ? 'Reprendre' : 'Lecture'; }
+  function playLabel(item) { if (item.seerr && C.stremio) return item.Type === 'Series' ? 'Voir les épisodes' : 'Lecture'; return item.seerr ? status(item) === 'Disponible' || status(item) === 'Partiellement disponible' ? 'Voir dans Jellyfin' : status(item) === 'Demandé' ? 'Demande en cours' : 'Demander' : item.Type === 'Series' ? 'Voir les épisodes' : item.UserData?.PlaybackPositionTicks ? 'Reprendre' : 'Lecture'; }
   function tile(item, index, top = false) {
     const button = el('button', top ? 'top10' : 'tile');
     button.dataset.mediaId = item.Id;
@@ -103,7 +103,7 @@
     hero = item; $('billboard').classList.remove('hidden');
     backdrop('heroImg', item); text('bbTitle', item.Name); text('bbCat', item.Type === 'Series' || item.Type === 'Episode' ? 'S É R I E' : 'F I L M');
     text('bbMeta', meta(item)); text('bbOverview', item.Overview); text('bbPlayLbl', playLabel(item)); text('bbRating', item.OfficialRating);
-    text('bbCallout', C.demo ? 'Aperçu Plezy · catalogue de démonstration' : item.seerr ? 'Découvrir avec Seerr' : 'Dans votre bibliothèque Jellyfin');
+    text('bbCallout', C.demo ? 'Aperçu Plezy · catalogue de démonstration' : item.stremio || item.seerr && C.stremio ? 'Lecture directe · français' : item.seerr ? 'Découvrir avec Seerr' : 'Dans votre bibliothèque Jellyfin');
     const logo = A.image(item, 'Logo', 600); $('bbLogo').hidden = !logo;
     if (logo) { $('bbLogo').src = logo; $('bbLogo').onerror = () => $('bbLogo').hidden = true; }
   }
@@ -215,7 +215,11 @@
     $('dDetailStatus').hidden = !detailBusy; text('dDetailStatus',detailBusy ? 'Chargement des épisodes…' : '');
     renderDetail(item); $('screen-detail').querySelector('[data-back]').focus();
     try {
-      const full = await A.details(item); if (version !== detailVersion || screen !== 'detail') return;
+      const context = await window.PlezyDetail.resolveContext(item, entry => A.details(entry));
+      if (version !== detailVersion || screen !== 'detail') return;
+      const full = context.item;
+      primaryEpisode = context.episode;
+      detailBusy = full.Type === 'Series' && !full.seerr;
       detail = full; renderDetail(full); loadRelated(full,version);
       if (full.Type === 'Series' && !full.seerr) {
         let resume=[], next=[];
@@ -233,9 +237,9 @@
           if (results[2].status === 'fulfilled') next=(results[2].value.Items||[]).filter(i=>sameId(i.SeriesId,full.Id)||!i.SeriesId && i.SeriesName===full.Name);
         }
         if (version !== detailVersion) return;
-        primaryEpisode = resume[0] || next[0];
+        primaryEpisode = context.episode || resume[0] || next[0];
         if (detailSeasons.length && detailSeasons.every(s=>Number.isFinite(s.ChildCount))) detailEpisodeCount=detailSeasons.reduce((n,s)=>n+s.ChildCount,0);
-        const selected=detailSeasons.find(s=>primaryEpisode?.SeasonId && sameId(s.Id,primaryEpisode.SeasonId) || primaryEpisode && s.IndexNumber===primaryEpisode.ParentIndexNumber) || detailSeasons[0];
+        const selected=detailSeasons.find(s=>context.seasonId && sameId(s.Id,context.seasonId)) || detailSeasons.find(s=>primaryEpisode?.SeasonId && sameId(s.Id,primaryEpisode.SeasonId) || primaryEpisode && s.IndexNumber===primaryEpisode.ParentIndexNumber) || detailSeasons[0];
         $('dSeasons').hidden=false; detailView.seasons(detailSeasons,selected);
         if (selected) await loadSeason(full,selected,version);
         else { detailBusy=false; $('dDetailStatus').hidden=true; detailView.episodes([],undefined); renderDetail(full); }
@@ -276,20 +280,24 @@
     }
   }
   async function play(item) {
+    if (C.stremio && !item.stremio && !item.demo && !item.offline) {
+      try { item = await A.resolveStremio(item); } catch (error) { if (item.seerr) throw error; }
+    }
     if (item.seerr) return requestTitle(item);
     if (item.Type === 'Series') { await openDetail(item); $('dSeasons').scrollIntoView({ behavior: 'smooth' }); return; }
     await window.PlezyPlayer.start(item, episodes);
   }
   async function requestTitle(item) {
-    if (!C.seerr) return seerrSettings();
-    if (item.mediaInfo?.status >= 4) {
+    if (!C.seerr && !C.stremio) return seerrSettings();
+    if (!C.stremio && item.mediaInfo?.status >= 4) {
       const matches = await A.items({ AnyProviderIdEquals: 'Tmdb.' + item.id });
       if (matches[0]) return openDetail(matches[0]);
       return toast('Ce titre n’est pas encore visible dans votre bibliothèque Jellyfin.');
     }
     if (requested.has(item.Id) || [2, 3].includes(item.mediaInfo?.status)) return toast('Une demande est déjà en cours.');
     modal('Demander « ' + item.Name + ' » ?', [el('p', 'muted', item.Type === 'Series' ? 'Toutes les saisons seront demandées à Seerr. Le traitement dépend des autorisations de votre compte.' : 'La demande sera envoyée à Seerr avec votre compte.'), action('Confirmer la demande', async () => {
-      await A.seerr('request', { method: 'POST', body: { mediaType: item.Type === 'Series' ? 'tv' : 'movie', mediaId: item.id, ...(item.Type === 'Series' ? { seasons: 'all' } : {}) } });
+      if (C.stremio) await A.requestDownload(item);
+      else await A.seerr('request', { method: 'POST', body: { mediaType: item.Type === 'Series' ? 'tv' : 'movie', mediaId: item.id, ...(item.Type === 'Series' ? { seasons: 'all' } : {}) } });
       item.mediaInfo = { ...item.mediaInfo, status: 2 }; requested.add(item.Id);
       if (detail?.Id === item.Id) detailButtons(item);
       if (hero?.Id === item.Id) text('bbPlayLbl', playLabel(item));
@@ -376,6 +384,7 @@
   $('dFav').onclick = () => run(() => toggleUserData('IsFavorite', 'FavoriteItems'), $('dFav'));
   $('dMore').onclick = () => {
     const selected = detail, options = [action(isSaved(selected) ? 'Retirer de ma liste' : 'Ajouter à ma liste', () => { updateSaved(selected); detailButtons(selected); closeModal(); })];
+    if (!selected.demo && !selected.offline && C.stremio) options.push(action('Télécharger via Seerr', () => { closeModal(); return requestTitle(selected); }));
     if (!selected.seerr) {
       if (!selected.offline) options.push(action(selected.UserData?.Played ? 'Marquer comme non vu' : 'Marquer comme vu',async()=>{await toggleUserData('Played','PlayedItems');closeModal();}));
       options.push(action('Recommencer depuis le début',()=>{closeModal();const target=selected.Type==='Series' ? primaryEpisode : selected;if(target)return window.PlezyPlayer.start({...target,UserData:{...target.UserData,PlaybackPositionTicks:0}},selected.Type==='Series'?primaryEpisodeQueue:episodes);}));

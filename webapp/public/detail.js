@@ -1,5 +1,23 @@
 /* Présentation des fiches : données réelles Jellyfin/Seerr, sans métadonnées inventées. */
 (() => {
+  // Every catalogue entry opens the series, while keeping the clicked episode
+  // as the playback target. Episode and season cards can occur in any rail.
+  async function resolveContext(item, details) {
+    const full = await details(item);
+    if (full.offline || full.demo || full.seerr || !['Episode', 'Season'].includes(full.Type)) return { item: full };
+    let seriesId = full.SeriesId || item.SeriesId;
+    let season = full.Type === 'Season' ? full : undefined;
+    if (!seriesId && full.Type === 'Episode' && (full.SeasonId || full.ParentId)) {
+      season = await details({ Id: full.SeasonId || full.ParentId, Type: 'Season' });
+      seriesId = season.SeriesId || season.ParentId;
+    }
+    if (!seriesId && full.Type === 'Season') seriesId = full.ParentId;
+    if (!seriesId) throw new Error('La série associée à cet épisode est introuvable.');
+    const series = await details({ Id: seriesId, Type: 'Series' });
+    if (series.Type !== 'Series') throw new Error('La fiche de la série est indisponible.');
+    return { item: series, episode: full.Type === 'Episode' ? full : undefined,
+      seasonId: full.Type === 'Season' ? full.Id : full.SeasonId || season?.Id };
+  }
   const minutes = ticks => Math.max(0, Math.floor((Number(ticks) || 0) / 600000000));
   const runtime = ticks => { const m = minutes(ticks); return m ? m >= 60 ? `${Math.floor(m/60)} h${m%60 ? ' '+String(m%60).padStart(2,'0')+' min' : ''}` : `${m} min` : ''; };
   function progress(item) {
@@ -115,5 +133,6 @@
     }
     return {render,seasons,episodes,similar};
   }
-  window.PlezyDetail={minutes,runtime,progress,episodeLabel,chooseEpisode,facts,create};
+  window.PlezyDetail={minutes,runtime,progress,episodeLabel,chooseEpisode,facts,create,resolveContext};
 })();
+

@@ -76,3 +76,11 @@ test('Les actualisations lentes ne se chevauchent pas',async()=>{
   state.at+=120000;const pending=scheduler.tick();await Promise.resolve();
   state.at+=120000;await scheduler.tick();assert.equal(state.refreshes,1);finish();await pending;
 });
+
+test('Stremio playback details keep the private backend even when the Seerr session wrapper is installed',async()=>{
+ let nativeDetails=0,legacyCalls=0;
+ const A={config:{stremio:true,seerr:''},save(){},details:async item=>{nativeDetails++;return {...item,Name:'Fiche française'};},fromSeerr:item=>item};
+ install(A,async()=>{legacyCalls++;throw Error('Legacy Seerr session must not be used for Stremio');});
+ const result=await A.details({Id:'seerr-movie-603',id:603,seerr:true,Type:'Movie'});
+ assert.equal(result.Name,'Fiche française');assert.equal(nativeDetails,1);assert.equal(legacyCalls,0);
+});

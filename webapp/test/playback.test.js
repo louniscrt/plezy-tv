@@ -6,7 +6,7 @@ const path=require('node:path');
 function playback(response,variant=''){
  let call;
  const api={config:{server:'http://media.local:8096/jellyfin',user:'u1',token:'fixture-token'},device:'browser-1',endpoint:(base,route,params)=>{const u=new URL(base+route);for(const[k,v]of Object.entries(params))u.searchParams.set(k,v);return u.href;},jf:async(route,options)=>{call={route,options};return response;}};
- const context={window:{PlezyAPI:api},URL};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'playback.js'),'utf8'),context);
+ const context={window:{PlezyAPI:api},URL,fetch:async()=>({ok:true,json:async()=>({duration:8000})})};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'playback.js'),'utf8'),context);
  return {api:context.window.PlezyPlayback,get call(){return call;}};
 }
 test('negotiation declares only browser containers and uses server media source/session IDs',async()=>{
@@ -61,11 +61,11 @@ test('external stream destinations never receive the Jellyfin access token',()=>
 test('Stremio playback uses every available link without contacting Jellyfin',async()=>{
  for (const variant of ['', 'tv/']) {
   const api={stremio:async()=>({streams:[{url:'/api/stremio/media/first',hls:false},{url:'/api/stremio/media/second',hls:false},{url:'/api/stremio/media/third',hls:false}]}),jf:()=>{throw Error('Jellyfin must not be used');}};
-  const context={window:{PlezyAPI:api},URL};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'playback.js'),'utf8'),context);
+  const context={window:{PlezyAPI:api},URL,fetch:async()=>({ok:true,json:async()=>({duration:8000})})};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'playback.js'),'utf8'),context);
   const p=context.window.PlezyPlayback,item={Id:'stremio~movie~tt123',stremio:true};
-  assert.equal((await p.negotiate(item)).url,'/api/stremio/media/first');
-  assert.equal((await p.negotiate(item,{force:true})).url,'/api/stremio/media/second');
-  const last=await p.negotiate(item,{force:true});assert.equal(last.url,'/api/stremio/media/third');assert.equal(last.hasMore,false);
+  assert.equal((await p.negotiate(item)).url.split('?')[0],'/api/stremio/hls/first/master.m3u8');
+  assert.equal((await p.negotiate(item,{force:true})).url.split('?')[0],'/api/stremio/hls/second/master.m3u8');
+  const last=await p.negotiate(item,{force:true});assert.equal(last.url.split('?')[0],'/api/stremio/hls/third/master.m3u8');assert.equal(last.hasMore,false);
   await assert.rejects(()=>p.negotiate(item,{force:true}),/Aucun autre/);
  }
 });

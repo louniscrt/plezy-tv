@@ -81,3 +81,45 @@ test('HLS playlists use opaque tickets for segments and strip credentials on a d
  const lines=playlist.trim().split('\n');assert.equal(await(await fetch(root+lines[1])).text(),'segment');assert.equal(seen[1].authorization,'fixture-only');
  assert.equal(engine.getTicket(lines[2].split('/').at(-1)).headers.authorization,undefined);
 });
+
+test('direct playback prefers H264 MP4 over HEVC 4K and excludes pending RD downloads',async()=>{
+ const engine=createStremio({config:{metadataManifest:false,addons:['https://fixture.test/manifest.json']},fetchJSON:async url=>url.endsWith('manifest.json')?{types:['movie'],resources:['stream']}:{streams:[
+  {name:'[RD+] 4K',url:'https://cdn.test/hevc',behaviorHints:{filename:'film.2160p.x265.mkv'}},
+  {name:'[RD download]',url:'https://cdn.test/pending',behaviorHints:{filename:'film.1080p.x264.mp4'}},
+  {name:'[RD+] 1080p',url:'https://cdn.test/compatible',behaviorHints:{filename:'film.1080p.x264.mp4'}}
+ ]}});
+ const streams=await engine.streams(encodeId('movie','tt123'));
+ assert.equal(streams.length,2);assert.equal(streams[0].url,'https://cdn.test/compatible');
+});
+
+test('French-only streams reject ambiguous MULTI, VOSTFR and titles containing French',async()=>{
+ const {isFrenchStream}=require('../stremio');
+ for(const filename of ['Film.2020.FRENCH.1080p.mp4','Film.MULTI.VFF.1080p.mkv','Film.TRUEFRENCH.mkv'])assert.equal(isFrenchStream({behaviorHints:{filename}}),true,filename);
+ for(const filename of ['Film.MULTI.1080p.mkv','Film.VOSTFR.1080p.mkv','The.French.Connection.1971.1080p.ENGLISH.mkv'])assert.equal(isFrenchStream({behaviorHints:{filename}}),false,filename);
+ assert.equal(isFrenchStream({title:'Audio 🇫🇷'}),true);
+ const engine=createStremio({config:{frenchOnly:true,metadataManifest:false,addons:['https://fixture.test/manifest.json']},fetchJSON:async url=>url.endsWith('manifest.json')?{types:['movie'],resources:['stream']}:{streams:[{url:'https://cdn.test/fr',title:'🇫🇷'},{url:'https://cdn.test/unknown',title:'MULTI'},{url:'https://cdn.test/en',title:'English'}]}});
+ const streams=await engine.streams(encodeId('movie','tt123'));assert.equal(streams.length,1);assert.equal(streams[0].url,'https://cdn.test/fr');
+});
+test('French metadata uses the configured Seerr binding without exposing its credentials',async()=>{
+ let called=false;
+ const engine=createStremio({config:{metadataManifest:false,addons:['https://fixture.test/manifest.json'],metadata:{seerrUrl:'http://metadata.test',seerrApiKey:'fixture-private'}},fetchJSON:async(url,headers)=>{
+  if(url.endsWith('manifest.json'))return {types:['movie'],resources:['meta'],catalogs:[{id:'top',type:'movie'}]};
+  if(url.includes('/api/v1/movie/603')){called=true;assert.equal(headers['X-Api-Key'],'fixture-private');assert.ok(url.endsWith('?language=fr'));return {title:'Titre français',overview:'Synopsis français',genres:[{name:'Science-fiction'}]};}
+  if(url.includes('/catalog/'))return {metas:[{...film,moviedb_id:603}]};
+  return {meta:{...film,moviedb_id:603}};
+ }});
+ const item=(await engine.meta(encodeId('movie','tt123'))).item;assert.equal(item.Name,'Titre français');assert.equal(item.Overview,'Synopsis français');assert.equal(item.Genres[0],'Science-fiction');assert.ok(called);assert.ok(!JSON.stringify(item).includes('fixture-private'));
+});
+
+test('resolving Seerr titles for playback is read-only; download uses only the existing Seerr request pipeline',async()=>{
+ const writes=[];
+ const engine=createStremio({config:{metadataManifest:false,addons:['https://fixture.test/manifest.json'],metadata:{seerrUrl:'http://metadata.test',seerrApiKey:'fixture-private'}},fetchJSON:async(url,headers,options)=>{
+  if(options?.method==='POST'){writes.push({url,headers,body:options.body});return {id:42,status:1,requestedBy:{email:'private@example.test'}};}
+  if(url.endsWith('manifest.json'))return {types:['movie'],resources:['meta']};
+  if(url.includes('/api/v1/movie/603'))return {title:'Matrix',overview:'Synopsis français',externalIds:{imdbId:'tt0133093'}};
+  return {meta:{id:'tt0133093',name:'The Matrix',moviedb_id:603}};
+ }});
+ const resolved=await engine.resolveMedia({tmdbId:603,type:'movie'});assert.equal(resolved.item.Id,'stremio~movie~tt0133093');assert.equal(writes.length,0);
+ const result=await engine.requestMedia({id:resolved.item.Id,type:'movie'});assert.equal(writes.length,1);assert.deepEqual(writes[0].body,{mediaType:'movie',mediaId:603});assert.deepEqual(result,{ok:true,requestId:42,status:1});assert.ok(!JSON.stringify(result).includes('private'));
+ assert.equal(writes[0].body.serverId,undefined);assert.equal(writes[0].body.profileId,undefined);assert.equal(writes[0].body.rootFolder,undefined);
+});

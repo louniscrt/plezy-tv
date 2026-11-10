@@ -1,0 +1,213 @@
+/* Habillage des trois écrans de catalogue/lecture, d'après les photos fournies.
+   Aucune règle ne cible la connexion, les réglages ou les fenêtres QR. */
+html.plezy-cinema #screen-main{--bg:#08090d;--pad:clamp(24px,4.5vw,78px);background:var(--bg)}
+html.plezy-cinema #screen-main .topbar{inset:0 0 auto;min-height:92px;padding:22px var(--pad);gap:18px;border:0;border-radius:0;background:#08090d;box-shadow:none;backdrop-filter:none}
+html.plezy-cinema #screen-main .avatar{order:0;width:38px;height:38px;border-radius:7px}
+html.plezy-cinema #screen-main .nav{order:1;justify-content:center;gap:6px;min-width:0}
+html.plezy-cinema #screen-main .nav button{font-size:clamp(14px,1.35vw,22px);padding:10px 20px;border-radius:999px;background:none;box-shadow:none;color:#e8e8e8}
+html.plezy-cinema #screen-main .nav button.active{background:#57585d;color:#fff}
+html.plezy-cinema #screen-main .nav button.tv-focus{background:#fff;color:#101010}
+html.plezy-cinema #screen-main .logo-plezy{order:4;margin:0;color:#e50914;font-size:26px;letter-spacing:.07em}
+html.plezy-cinema #screen-main #btnSettings{order:3;flex:none}
+html.plezy-cinema #screen-main .tv-address{order:5}
+html.plezy-cinema #screen-main .main-scroll{padding-top:100px;scroll-padding-top:110px}
+html.plezy-cinema #screen-main .main-scroll::-webkit-scrollbar{display:none}
+html.plezy-cinema #screen-main .hero-backdrop{inset:0;height:100%;overflow:hidden;border-radius:24px;z-index:0;border:1px solid #ffffff30}
+html.plezy-cinema #screen-main .hero-backdrop img{object-position:center 30%;opacity:1}
+html.plezy-cinema #screen-main .grad-left{background:linear-gradient(90deg,#090a0de8,#090a0d90 38%,#090a0d0d 75%)}
+html.plezy-cinema #screen-main .grad-top{background:linear-gradient(#0002,transparent);height:30%}
+html.plezy-cinema #screen-main .grad-bottom{height:50%;background:linear-gradient(0deg,#08090d9c,transparent)}
+html.plezy-cinema #screen-main .billboard{min-height:clamp(440px,65vh,780px);max-width:none;margin:0 var(--pad);padding:42px;gap:12px;justify-content:flex-end;border-radius:24px}
+html.plezy-cinema #screen-main .billboard>*:not(.hero-backdrop){z-index:1}
+html.plezy-cinema #screen-main .bb-title{max-width:55%;font-size:clamp(40px,4.4vw,76px);line-height:1.02;letter-spacing:-.045em}
+html.plezy-cinema #screen-main .bb-logo{max-height:150px;max-width:44%;object-fit:contain;object-position:left}
+html.plezy-cinema #screen-main .bb-tag{font-size:13px;letter-spacing:.16em}
+html.plezy-cinema #screen-main .bb-meta{font-size:clamp(14px,1.3vw,21px);max-width:55%}
+html.plezy-cinema #screen-main .bb-overview{font-size:clamp(16px,1.5vw,24px);line-height:1.4;max-width:49%;-webkit-line-clamp:3}
+html.plezy-cinema #screen-main .bb-buttons{gap:12px;margin-top:9px}
+html.plezy-cinema #screen-main .bb-buttons .btn{min-height:48px;border-radius:999px;padding:12px 25px;border:0;box-shadow:none;font-size:18px}
+html.plezy-cinema #screen-main .bb-buttons .btn-grey{background:#ffffff45;backdrop-filter:none}
+html.plezy-cinema #screen-main .bb-callout{font-size:13px;color:#ddd;max-width:60%}
+html.plezy-cinema #screen-main .bb-rating{right:24px;bottom:26px;font-size:18px}
+html.plezy-cinema #screen-main .genre-shortcuts{display:flex;gap:12px;padding:16px var(--pad) 6px;overflow-x:auto;scrollbar-width:none}
+html.plezy-cinema #screen-main .genre-shortcut{flex:1 0 150px;min-height:76px;max-width:280px;padding:16px;background:linear-gradient(150deg,#222631,#12141c);border:1px solid #ffffff20;border-radius:18px;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:.035em}
+html.plezy-cinema #screen-main .genre-shortcut:hover{background:#30333c}
+html.plezy-cinema #screen-main #rows{margin-top:18px;gap:24px}
+html.plezy-cinema #screen-main .row{scroll-margin-top:112px}
+html.plezy-cinema #screen-main .row h2{font-size:clamp(21px,2vw,30px);font-weight:600;margin-bottom:6px}
+html.plezy-cinema #screen-main .tile{border-radius:12px;border:0;box-shadow:none}
+html.plezy-cinema #screen-main .tile.tv-focus{outline:3px solid #fff!important;outline-offset:3px!important;transform:scale(1.025);box-shadow:none}
+html.plezy-cinema #screen-main .row-track{gap:16px;padding-top:10px;padding-bottom:20px}
+html.plezy-cinema #screen-main .resume-card{flex:0 0 clamp(170px,16vw,260px);height:auto;aspect-ratio:auto;background:none;overflow:visible;align-self:flex-start;transition:flex-basis .2s}
+html.plezy-cinema #screen-main .resume-cover{position:relative;display:block;height:clamp(220px,22vw,340px);overflow:hidden;border-radius:12px;background:#16181e}
+html.plezy-cinema #screen-main .resume-card:focus .resume-poster,html.plezy-cinema #screen-main .resume-card:hover .resume-poster{display:none}
+html.plezy-cinema #screen-main .resume-card:focus,html.plezy-cinema #screen-main .resume-card:hover{flex-basis:clamp(300px,38vw,620px);outline:none!important;box-shadow:none;transform:none}
+html.plezy-cinema #screen-main .resume-card:focus .resume-cover{outline:3px solid #fff;outline-offset:0}
+html.plezy-cinema #screen-main .resume-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+html.plezy-cinema #screen-main .resume-caption{display:flex;flex-direction:column;gap:5px;text-align:left;font-size:14px;padding:12px 3px 0;line-height:1.3;min-height:62px}
+html.plezy-cinema #screen-main .resume-caption strong{font-size:16px;font-weight:600}
+html.plezy-cinema #screen-main .t-prog{height:5px;background:#ffffff90;bottom:0}
+html.plezy-cinema #screen-main.search-mode .hero-backdrop{display:none}
+html.plezy-cinema #screen-main.search-mode .search-box{padding-top:20px}
+
+/* Fiche plein écran : image à droite, lecture et informations à gauche. */
+html.plezy-cinema #screen-detail{--detail-bg:#090a0d;--detail-inset:5.5vw;background:var(--detail-bg)}
+html.plezy-cinema #screen-detail .detail-overlay{background:#090a0d;backdrop-filter:none}
+html.plezy-cinema #screen-detail .detail-scroll{padding:0;scroll-padding-top:30px}
+html.plezy-cinema #screen-detail .detail-panel{width:100%;max-width:none;border:0;border-radius:0;background:var(--detail-bg);box-shadow:none}
+html.plezy-cinema #screen-detail .detail-hero{min-height:100vh;height:auto;aspect-ratio:auto;display:flex;align-items:center}
+html.plezy-cinema #screen-detail .detail-backdrop{position:absolute;inset:0}
+html.plezy-cinema #screen-detail .detail-backdrop img{object-position:70% center}
+html.plezy-cinema #screen-detail .d-grad{background:linear-gradient(90deg,#090a0df5 0%,#090a0dd9 25%,#090a0d60 52%,transparent 85%),linear-gradient(0deg,#090a0d,transparent 27%)}
+html.plezy-cinema #screen-detail .detail-feature{position:relative;inset:auto;width:51%;min-width:500px;max-width:830px;padding:65px 0 48px var(--detail-inset);gap:12px}
+html.plezy-cinema #screen-detail .detail-brand{font-size:16px;letter-spacing:.09em}
+html.plezy-cinema #screen-detail .d-title{font-size:clamp(40px,4.8vw,76px);max-width:100%;line-height:1.03}
+html.plezy-cinema #screen-detail .d-logo{max-width:100%;max-height:150px}
+html.plezy-cinema #screen-detail .d-meta{margin:4px 0 0;font-size:clamp(15px,1.4vw,23px);gap:9px}
+html.plezy-cinema #screen-detail .d-meta>span:not(.detail-badge)+span:not(.detail-badge):before{content:'·';margin-right:9px}
+html.plezy-cinema #screen-detail .detail-badge{font-size:14px;border-radius:3px;padding:1px 4px}
+html.plezy-cinema #screen-detail .detail-rating{margin-bottom:0;font-size:16px}
+html.plezy-cinema #screen-detail .detail-age{font-size:15px;background:#ffffff20;border:0;border-radius:4px;padding:2px 7px}
+html.plezy-cinema #screen-detail .d-ep{font-size:22px;margin:8px 0 0}
+html.plezy-cinema #screen-detail .d-overview{font-size:clamp(16px,1.6vw,25px);line-height:1.45;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+html.plezy-cinema #screen-detail .detail-status{font-size:15px}
+html.plezy-cinema #screen-detail .detail-resume{margin:3px 0 0;width:100%;max-width:460px;order:9}
+html.plezy-cinema #screen-detail .detail-actions{display:grid;grid-template-columns:repeat(4,44px) 1fr;gap:12px;margin-top:6px}
+html.plezy-cinema #screen-detail .detail-play{grid-column:1/-1;grid-row:2;justify-content:flex-start;border-radius:999px;width:100%;min-height:52px;font-size:21px;padding:12px 24px;margin-top:6px;box-shadow:none}
+html.plezy-cinema #screen-detail #dPlay{width:100%;max-width:none;grid-column:1/-1}
+html.plezy-cinema #screen-detail .detail-round{background:none;border:0;width:44px;height:44px;min-height:44px;box-shadow:none}
+html.plezy-cinema #screen-detail .detail-round:hover{background:#ffffff20}
+html.plezy-cinema #screen-detail .detail-round.on{color:#fff;background:#ffffff20}
+html.plezy-cinema #screen-detail .detail-trailer{grid-column:4/-1;grid-row:1;justify-self:start;font-size:14px;background:#ffffff20;border-radius:999px}
+html.plezy-cinema #screen-detail .detail-text-action{display:flex;align-items:center;gap:14px;font-size:20px;min-height:44px;padding:6px 20px;text-align:left;border-radius:999px}
+html.plezy-cinema #screen-detail .detail-text-action:hover{background:#ffffff20}
+html.plezy-cinema #screen-detail .detail-text-action svg{width:26px;height:26px}
+html.plezy-cinema #screen-detail .detail-close{position:fixed;top:24px;right:28px;z-index:5;background:#090a0da0;border:1px solid #ffffff40;border-radius:50%}
+html.plezy-cinema #screen-detail .detail-content{padding:0 var(--detail-inset) 48px;margin:0}
+html.plezy-cinema #screen-detail .detail-summary{display:block;padding-top:24px}
+html.plezy-cinema #screen-detail .detail-main-info:empty{display:none}
+html.plezy-cinema #screen-detail .detail-facts{display:flex;flex-direction:row;gap:26px;flex-wrap:wrap;font-size:15px}
+html.plezy-cinema #screen-detail .detail-episode{border-radius:8px}
+html.plezy-cinema #screen-detail .detail-episode.tv-focus{background:#ffffff18;box-shadow:none}
+
+/* Lecteur : options en haut, titre à droite, chronologie et langues en bas. */
+html.plezy-cinema #screen-player{--player-pad:clamp(22px,5vw,90px)}
+html.plezy-cinema #screen-player .player-ui{background:linear-gradient(180deg,#0008,transparent 26%,transparent 55%,#000d)}
+html.plezy-cinema #screen-player[data-state=paused] .player-ui{background:linear-gradient(90deg,#0007,transparent 75%),linear-gradient(0deg,#000d,transparent 65%)}
+html.plezy-cinema #screen-player .p-top{padding:32px var(--player-pad);align-items:center;justify-content:flex-start;gap:20px}
+html.plezy-cinema #screen-player .p-top .player-icon{border:0;background:none;box-shadow:none;border-radius:50%;backdrop-filter:none}
+html.plezy-cinema #screen-player .p-top #pRestart{order:1}
+html.plezy-cinema #screen-player .p-top #pNext{order:2}
+html.plezy-cinema #screen-player .player-now{order:3;margin-left:auto;flex:0 1 auto;display:flex;flex-direction:column;align-items:flex-end;font-size:clamp(17px,1.8vw,29px);gap:4px;max-width:55%}
+html.plezy-cinema #screen-player .player-now span{font-weight:400;font-size:.85em}
+html.plezy-cinema #screen-player #pReport{order:4;width:36px;opacity:.7}
+html.plezy-cinema #screen-player .p-stream{display:none}
+html.plezy-cinema #screen-player .pause-info{top:auto;bottom:30%;left:var(--player-pad);gap:12px}
+html.plezy-cinema #screen-player .pause-eyebrow,html.plezy-cinema #screen-player .pause-series,html.plezy-cinema #screen-player .pause-overview,html.plezy-cinema #screen-player .pause-label{display:none}
+html.plezy-cinema #screen-player .pause-info h1{max-width:70%;font-size:clamp(42px,5.5vw,88px);font-weight:800;line-height:1.06}
+html.plezy-cinema #screen-player .pause-logo{max-width:48%;max-height:150px;object-fit:contain;object-position:left}
+html.plezy-cinema #screen-player .pause-info h2{font-size:clamp(18px,1.8vw,28px);font-weight:500;margin:0}
+html.plezy-cinema #screen-player .player-bottom{inset:auto 0 0;border:0;border-radius:0;padding:0 var(--player-pad) max(30px,env(safe-area-inset-bottom));background:none;backdrop-filter:none;box-shadow:none;gap:18px}
+html.plezy-cinema #screen-player .p-timeline{grid-template-columns:64px auto minmax(0,1fr) auto;gap:20px}
+html.plezy-cinema #screen-player .p-timeline .play-toggle{width:62px;height:62px;border-radius:50%;background:#fff;color:#08090d;padding:15px}
+html.plezy-cinema #screen-player .play-toggle svg{width:34px;height:34px}
+html.plezy-cinema #screen-player .p-elapsed,html.plezy-cinema #screen-player .p-remaining{font-size:clamp(17px,1.7vw,26px);font-variant-numeric:tabular-nums;min-width:55px}
+html.plezy-cinema #screen-player .p-bar:before,html.plezy-cinema #screen-player .p-fill,html.plezy-cinema #screen-player .p-buf{top:10px;bottom:9px;border-radius:4px}
+html.plezy-cinema #screen-player .p-bar:before{background:#ffffff90}
+html.plezy-cinema #screen-player .p-knob{width:11px;height:11px}
+html.plezy-cinema #screen-player .player-controls{display:flex;align-items:center;justify-content:center;gap:14px}
+html.plezy-cinema #screen-player .player-transport{gap:0}
+html.plezy-cinema #screen-player .player-transport .player-icon{width:32px;height:36px;min-height:36px;padding:4px}
+html.plezy-cinema #screen-player .player-transport .player-icon svg{width:25px;height:25px}
+html.plezy-cinema #screen-player .player-volume input{display:none}
+html.plezy-cinema #screen-player .player-languages{display:flex;gap:9px;justify-content:center;min-width:0;pointer-events:auto}
+html.plezy-cinema #screen-player .language-pill{padding:9px 17px;min-height:40px;max-width:280px;background:#ffffff30;border-radius:999px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.plezy-cinema #screen-player .language-pill.selected{background:#ffffff50}
+html.plezy-cinema #screen-player .language-pill:focus-visible,html.plezy-cinema #screen-player .language-pill.tv-focus{background:#fff;color:#08090d;outline:2px solid white;outline-offset:3px;box-shadow:none}
+html.plezy-cinema #screen-player .player-tools{gap:4px}
+html.plezy-cinema #screen-player .player-tools .player-icon{width:38px;height:38px;min-height:38px;padding:6px;border-radius:50%}
+html.plezy-cinema #screen-player .player-tools .player-icon svg{width:25px;height:25px}
+html.plezy-cinema #screen-player .player-icon.tv-focus{background:#fff;color:#08090d;box-shadow:none;outline:2px solid #fff!important;outline-offset:4px!important}
+html.plezy-cinema #screen-player .player-footnote{display:none}
+html.plezy-cinema #screen-player .player-bottom .p-bar.tv-focus{background:none;color:#fff;outline:2px solid #fff!important}
+
+@media(max-width:1000px){
+ html.plezy-cinema #screen-main .topbar{gap:8px;padding:15px 24px;min-height:80px}
+ html.plezy-cinema #screen-main .nav button{padding:9px 12px;font-size:14px}
+ html.plezy-cinema #screen-main .logo-plezy{font-size:20px}
+ html.plezy-cinema #screen-main .main-scroll{padding-top:90px}
+ html.plezy-cinema #screen-main .bb-overview{max-width:65%}
+ html.plezy-cinema #screen-main .billboard{padding:28px}
+ html.plezy-cinema #screen-detail .detail-feature{width:65%;min-width:0;padding-top:75px}
+ html.plezy-cinema #screen-detail .d-overview{font-size:18px}
+ html.plezy-cinema #screen-player .player-controls{flex-wrap:wrap;gap:8px}
+ html.plezy-cinema #screen-player .player-languages{order:-1;width:100%}
+ html.plezy-cinema #screen-player .language-pill{font-size:13px;padding:8px 12px}
+}
+@media(max-width:640px){
+ html.plezy-cinema #screen-main{--pad:16px}
+ html.plezy-cinema #screen-main .topbar{padding:12px 16px;flex-wrap:wrap;min-height:100px;gap:8px}
+ html.plezy-cinema #screen-main .avatar{width:30px;height:30px}
+ html.plezy-cinema #screen-main .logo-plezy{order:1;margin-right:auto;margin-left:4px;font-size:20px}
+ html.plezy-cinema #screen-main .nav{order:7;justify-content:flex-start;width:100%;flex-basis:100%;gap:0}
+ html.plezy-cinema #screen-main .nav button{padding:8px 12px;font-size:13px}
+ html.plezy-cinema #screen-main .main-scroll{padding-top:112px;scroll-padding-top:122px}
+ html.plezy-cinema #screen-main .hero-backdrop{height:100%;border-radius:18px}
+ html.plezy-cinema #screen-main .hero-backdrop img{object-position:65% center}
+ html.plezy-cinema #screen-main .grad-left{background:linear-gradient(0deg,#08090df2,#08090d88 45%,#08090d00 80%)}
+ html.plezy-cinema #screen-main .billboard{min-height:530px;padding:22px;gap:9px}
+ html.plezy-cinema #screen-main .bb-title{max-width:100%;font-size:39px}
+ html.plezy-cinema #screen-main .bb-logo{max-width:90%;max-height:110px}
+ html.plezy-cinema #screen-main .bb-overview{font-size:15px;max-width:100%;-webkit-line-clamp:3}
+ html.plezy-cinema #screen-main .bb-meta{font-size:12px;max-width:100%}
+ html.plezy-cinema #screen-main .bb-buttons .btn{font-size:13px;padding:11px 15px;min-height:44px;white-space:nowrap}
+ html.plezy-cinema #screen-main .bb-callout{font-size:10px;max-width:85%}
+ html.plezy-cinema #screen-main .bb-rating{font-size:12px;right:16px;bottom:16px}
+ html.plezy-cinema #screen-main .genre-shortcut{min-height:58px;flex-basis:130px;font-size:14px;border-radius:12px}
+ html.plezy-cinema #screen-main .resume-card{flex-basis:170px}
+ html.plezy-cinema #screen-main .resume-card:focus,html.plezy-cinema #screen-main .resume-card:hover{flex-basis:270px}
+ html.plezy-cinema #screen-main .row h2{font-size:20px}
+ html.plezy-cinema #screen-detail .detail-hero{min-height:95vh;align-items:flex-end}
+ html.plezy-cinema #screen-detail .detail-backdrop img{object-position:60% top}
+ html.plezy-cinema #screen-detail .d-grad{background:linear-gradient(0deg,#090a0d 2%,#090a0df0 35%,#090a0d60 70%,#090a0d00)}
+ html.plezy-cinema #screen-detail .detail-feature{width:100%;max-width:none;padding:190px 22px 34px;gap:10px}
+ html.plezy-cinema #screen-detail .d-title{font-size:38px}
+ html.plezy-cinema #screen-detail .d-logo{max-height:120px;max-width:85%}
+ html.plezy-cinema #screen-detail .d-meta{font-size:13px}
+ html.plezy-cinema #screen-detail .detail-badge{font-size:11px}
+ html.plezy-cinema #screen-detail .d-ep{font-size:18px}
+ html.plezy-cinema #screen-detail .d-overview{font-size:15px;-webkit-line-clamp:4}
+ html.plezy-cinema #screen-detail .detail-play{font-size:16px;min-height:46px}
+ html.plezy-cinema #screen-detail .detail-text-action{font-size:16px;min-height:44px}
+ html.plezy-cinema #screen-detail .detail-content{padding:0 22px 30px}
+ html.plezy-cinema #screen-detail .detail-close{top:14px;right:16px}
+ html.plezy-cinema #screen-player{--player-pad:18px}
+ html.plezy-cinema #screen-player .p-top{padding:18px;gap:6px}
+ html.plezy-cinema #screen-player .p-top .player-icon{width:36px;height:38px;min-height:38px;padding:6px}
+ html.plezy-cinema #screen-player .player-now{font-size:14px;max-width:45%;gap:3px}
+ html.plezy-cinema #screen-player #pReport{display:none}
+ html.plezy-cinema #screen-player .pause-info{bottom:36%;gap:10px}
+ html.plezy-cinema #screen-player .pause-info h1{font-size:36px;max-width:100%}
+ html.plezy-cinema #screen-player .pause-info h2{font-size:16px}
+ html.plezy-cinema #screen-player .pause-logo{max-width:80%;max-height:100px}
+ html.plezy-cinema #screen-player .p-timeline{grid-template-columns:44px auto minmax(0,1fr) auto;gap:10px}
+ html.plezy-cinema #screen-player .p-timeline .play-toggle{width:44px;height:44px;padding:10px}
+ html.plezy-cinema #screen-player .play-toggle svg{width:25px;height:25px}
+ html.plezy-cinema #screen-player .p-elapsed,html.plezy-cinema #screen-player .p-remaining{font-size:12px;min-width:32px}
+ html.plezy-cinema #screen-player .player-bottom{padding-bottom:max(20px,env(safe-area-inset-bottom));gap:13px}
+ html.plezy-cinema #screen-player .player-languages{justify-content:flex-start;overflow-x:auto;scrollbar-width:none;gap:6px}
+ html.plezy-cinema #screen-player .language-pill{flex:none;max-width:180px;font-size:12px;min-height:38px}
+ html.plezy-cinema #screen-player .player-controls{justify-content:space-between}
+}
+@media(orientation:landscape) and (max-height:550px){
+ html.plezy-cinema #screen-player .p-top{padding:10px 22px}
+ html.plezy-cinema #screen-player .pause-info{bottom:38%}
+ html.plezy-cinema #screen-player .pause-info h1{font-size:36px}
+ html.plezy-cinema #screen-player .pause-info h2{font-size:16px}
+ html.plezy-cinema #screen-player .pause-logo{max-height:85px}
+ html.plezy-cinema #screen-player .player-bottom{padding-bottom:12px;gap:5px}
+ html.plezy-cinema #screen-player .player-languages{width:auto;order:0}
+ html.plezy-cinema #screen-player .player-controls{flex-wrap:nowrap}
+ html.plezy-cinema #screen-player .player-now{font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){html.plezy-cinema #screen-main .resume-card{transition:none}}

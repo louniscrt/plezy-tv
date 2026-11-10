@@ -501,6 +501,7 @@ class PlayerActivity : AppCompatActivity() {
             .setTargetBufferBytes(12 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false).build()
         val exo = ExoPlayer.Builder(this).setLoadControl(loadControl).build()
+        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setPreferredAudioLanguage("fr").build()
         player = exo
         playerView.player = exo
         exo.addListener(object : Player.Listener {

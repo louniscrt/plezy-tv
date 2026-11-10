@@ -503,6 +503,14 @@ class MainActivity : AppCompatActivity() {
         }
         btnHeroPlay.setOnClickListener {
             val hero = featuredItem ?: return@setOnClickListener
+            if (hero.isSeerrMedia && hero.type == MediaType.MOVIE && hero.tmdbId != null && jellyfinClient.stremio.enabled) {
+                lifecycleScope.launch {
+                    val resolved = jellyfinClient.stremio.engine.resolveTmdb(hero.tmdbId, false)
+                    if (resolved != null) startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("media_item", resolved))
+                    else Toast.makeText(this@MainActivity, "Aucun lien français disponible pour ce titre", Toast.LENGTH_LONG).show()
+                }
+                return@setOnClickListener
+            }
             when {
                 hero.isSeerrMedia && hero.overseerrStatus != OverseerrStatus.AVAILABLE_ON_JELLYFIN -> openMediaDetail(hero)
                 hero.type == MediaType.MOVIE || hero.type == MediaType.EPISODE -> {
@@ -523,7 +531,7 @@ class MainActivity : AppCompatActivity() {
             if (hero != null) {
                 renderInfo(hero, featuredCallout ?: defaultCallout(hero), featuredTop10)
                 btnHeroPlay.text = when {
-                    hero.isSeerrMedia && hero.overseerrStatus != OverseerrStatus.AVAILABLE_ON_JELLYFIN ->
+                    hero.isSeerrMedia && !jellyfinClient.stremio.enabled && hero.overseerrStatus != OverseerrStatus.AVAILABLE_ON_JELLYFIN ->
                         if (hero.overseerrStatus == OverseerrStatus.REQUESTED || seerrClient.isAlreadyRequested(hero)) "⏳  Demandé" else "＋  Demander"
                     hero.progressPercent > 0 -> "▶  Reprendre"
                     else -> "▶  Lecture"

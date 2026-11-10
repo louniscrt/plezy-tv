@@ -1,7 +1,8 @@
 FROM node:24-alpine
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8090
+RUN apk add --no-cache ffmpeg
 WORKDIR /app
-COPY --chown=node:node package.json server.js pairing.js stremio.js ./
+COPY --chown=node:node package.json server.js pairing.js stremio.js stremio-media.js ./
 COPY --chown=node:node public ./public
 USER node
 EXPOSE 8090

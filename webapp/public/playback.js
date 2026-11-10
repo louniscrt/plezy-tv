@@ -24,15 +24,21 @@
     }
     return url.href;
   }
-  async function negotiate(item, { force = false, audio, subtitle = -1, bitrate = 0, mp4 = true, webm = true, signal } = {}) {
+  async function negotiate(item, { force = false, start = 0, audio, subtitle = -1, bitrate = 0, mp4 = true, webm = true, signal } = {}) {
     if (item.stremio) {
       const result = await A.stremio('streams', { id: item.Id }, signal);
-      const index = force ? (stremioIndices.get(item.Id) || 0) + 1 : 0;
+      const index = force === 'seek' ? (stremioIndices.get(item.Id) || 0) : force ? (stremioIndices.get(item.Id) || 0) + 1 : 0;
       stremioIndices.set(item.Id, index);
       if (stremioIndices.size > 200) stremioIndices.delete(stremioIndices.keys().next().value);
       const chosen = result.streams[index];
       if (!chosen) throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
-      return { url: chosen.url, hls: chosen.hls, hasMore: index + 1 < result.streams.length, method: 'DirectPlay', offset: 0, source: { Id: item.Id, MediaStreams: [] } };
+      const response = await fetch(chosen.url + '?probe=1', { signal });
+      if (!response.ok) {
+        if (index + 1 < result.streams.length) return negotiate(item, { force: true, start, signal });
+        throw new Error('Aucune piste française lisible disponible. Utilisez Télécharger via Seerr dans Plus d’options.');
+      }
+      const info = await response.json();
+      return { url: chosen.url.replace('/media/', '/hls/') + '/master.m3u8', hls: true, duration: info.duration, hasMore: index + 1 < result.streams.length, method: 'DirectPlay', offset: 0, source: { Id: item.Id, MediaStreams: [] } };
     }
     const direct = !force && !bitrate && audio === undefined && subtitle < 0;
     const response = await A.jf(`/Items/${item.Id}/PlaybackInfo`, {

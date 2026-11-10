@@ -16,7 +16,7 @@
     url.pathname = url.pathname.replace(/\/web(?:\/.*)?$/i, '').replace(/\/$/, '');
     return url.href.replace(/\/$/, '');
   }
-  const proxy = url => String(url).startsWith('/api/stremio/media/') ? url : '/proxy?url=' + encodeURIComponent(url);
+  const proxy = url => /^\/api\/stremio\/(media|hls)\//.test(String(url)) ? url : '/proxy?url=' + encodeURIComponent(url);
   const endpoint = (base, route, params = {}) => {
     const url = new URL(base + '/' + route.replace(/^\//, ''));
     Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null) url.searchParams.set(key, value); });
@@ -138,17 +138,28 @@
       if (p.Filters) extra = history().filter(i => p.Filters === 'IsFavorite' ? i.UserData?.IsFavorite : p.Filters === 'IsUnplayed' ? !i.UserData?.Played : false);
       else if (p.AnyProviderIdEquals) extra = [];
       else extra = (await stremio('catalog', { ...(p.IncludeItemTypes === 'Movie' ? { type: 'movie' } : p.IncludeItemTypes === 'Series' ? { type: 'series' } : {}), search: p.SearchTerm || '', skip: p.StartIndex || 0, limit: p.Limit || 100 }, options.signal)).Items.map(remember);
-      let items = [...(native.Items || []), ...extra];
+      let discovered = [];
+      if (p.SearchTerm) { try { discovered = (await stremio('search', { search: p.SearchTerm }, options.signal)).results.filter(i => i.mediaType === 'movie' || i.mediaType === 'tv').map(i => fromSeerr(i)); } catch { /* Other providers remain available. */ } }
+      let items = [...(native.Items || []), ...extra, ...discovered];
       if (p.IncludeItemTypes === 'Movie') items = items.filter(i => i.Type === 'Movie');
       if (p.IncludeItemTypes === 'Series') items = items.filter(i => i.Type === 'Series');
       if (p.SortBy === 'SortName') items.sort((a, b) => a.Name.localeCompare(b.Name));
-      return { ...native, Items: [...new Map(items.map(i => [i.Id, i])).values()] };
+      return { ...native, Items: [...new Map(items.map(i => [(i.Type === 'Series' ? 'series:' : 'movie:') + (i.ProviderIds?.Tmdb || (i.seerr ? i.id : i.Id)), i])).values()] };
     }
     return nativeJf(route, options);
   }
 
   window.PlezyAPI = { config, save, read, normalize, proxy, endpoint, request, jf, seerr, items, image, fromSeerr, device, fields,
     stremio,
+    async resolveStremio(item) {
+      if (item.stremio) return item;
+      const result = await stremio('resolve', { type: item.Type === 'Series' ? 'series' : 'movie', ...(item.ProviderIds?.Imdb ? { id: item.ProviderIds.Imdb } : { tmdbId: item.seerr ? item.id : item.ProviderIds?.Tmdb }) });
+      return remember(result.item);
+    },
+    async requestDownload(item) {
+      const response = await fetch('/api/stremio/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: item.Type === 'Series' ? 'series' : 'movie', ...(item.stremio ? { id: item.Id } : { tmdbId: item.seerr ? item.id : item.ProviderIds?.Tmdb }) }), signal: AbortSignal.timeout(30000) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'La demande Seerr a échoué.'); return data;
+    },
     async initStremio() { try { stremioEnabled = (await stremio('status')).enabled === true; } catch { stremioEnabled = false; } return stremioEnabled; },
     async login(server, username, password) {
       const base = normalize(server);
@@ -160,7 +171,7 @@
       Object.assign(config, { server, token: result.AccessToken, user: result.User.Id, name: result.User.Name, demo: false }); save();
     },
     logout() { Object.assign(config, { token: '', user: '', name: '', demo: false, seerrKey: '', seerrCookie: '' }); save(); },
-    async details(item) { if (item.stremio && !item.offline) return item.Type === 'Episode' ? remember(item) : remember(await stremio('meta', { id: item.Id })); return item.demo || item.offline ? item : item.seerr ? fromSeerr(await seerr(`${item.Type === 'Series' ? 'tv' : 'movie'}/${item.id}`, { params: { language: 'fr' } }), item.Type === 'Series' ? 'tv' : 'movie') : jf(`/Users/${config.user}/Items/${item.Id}`); },
+    async details(item) { if (item.seerr && stremioEnabled) return remember((await stremio('resolve', { tmdbId: item.id, type: item.Type === 'Series' ? 'series' : 'movie' })).item); if (item.stremio && !item.offline) return item.Type === 'Episode' ? remember(item) : remember(await stremio('meta', { id: item.Id })); return item.demo || item.offline ? item : item.seerr ? fromSeerr(await seerr(`${item.Type === 'Series' ? 'tv' : 'movie'}/${item.id}`, { params: { language: 'fr' } }), item.Type === 'Series' ? 'tv' : 'movie') : jf(`/Users/${config.user}/Items/${item.Id}`); },
     async discover(route) { const data = await seerr(route, { params: { language: 'fr' } }); return (data.results || []).filter(i => i.mediaType !== 'person').map(i => fromSeerr(i)); }
   };
 })();

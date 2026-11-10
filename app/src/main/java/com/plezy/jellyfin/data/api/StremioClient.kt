@@ -1,6 +1,7 @@
 package com.plezy.jellyfin.data.api
 
 import android.content.Context
+import com.plezy.jellyfin.BuildConfig
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -19,6 +20,7 @@ class StremioClient(context: Context) {
             val stamp = if (file.isFile) file.lastModified() else 0L
             if (shared == null || stamp != loadedStamp) {
                 val config = try { if (file.isFile) JsonParser.parseString(file.readText()).asJsonObject else JsonObject() } catch (_: Exception) { JsonObject() }
+                if (!config.has("backendUrl") && BuildConfig.STREMIO_BACKEND_URL.isNotBlank()) config.addProperty("backendUrl", BuildConfig.STREMIO_BACKEND_URL)
                 shared = try { StremioEngine(config) } catch (_: Exception) { StremioEngine(JsonObject()) }
                 loadedStamp = stamp
             }

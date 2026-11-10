@@ -127,6 +127,9 @@ class MediaDetailActivity : AppCompatActivity() {
     private fun loadDetails() {
         btnPlayEpisode.isEnabled = false
         lifecycleScope.launch {
+            if (currentItem.isSeerrMedia && jellyfinClient.stremio.enabled && currentItem.tmdbId != null) {
+                jellyfinClient.stremio.engine.resolveTmdb(currentItem.tmdbId!!, currentItem.type == MediaType.SERIES)?.let { currentItem = it }
+            }
             if (currentItem.isSeerrMedia) {
                 val tmdbId = currentItem.tmdbId
                 if (tmdbId != null) seerrClient.getMediaDetails(tmdbId, currentItem.type == MediaType.SERIES)?.let { currentItem = it }
@@ -162,6 +165,7 @@ class MediaDetailActivity : AppCompatActivity() {
 
         btnPlayEpisode.setOnClickListener {
             val target = selectedEpisode ?: currentItem
+            if (target.isSeerrMedia && jellyfinClient.stremio.enabled) { openPlayer(target); return@setOnClickListener }
             if (target.isSeerrMedia && (target.overseerrStatus == OverseerrStatus.REQUESTED || seerrClient.isAlreadyRequested(target))) {
                 Toast.makeText(this, "Déjà demandé sur Seerr", Toast.LENGTH_SHORT).show()
             } else if (target.isSeerrMedia && target.overseerrStatus == OverseerrStatus.AVAILABLE_ON_JELLYFIN) {
@@ -197,7 +201,7 @@ class MediaDetailActivity : AppCompatActivity() {
                     .setItems(options) { _, which ->
                         when (which) {
                             0 -> openPlayer(target.copy(playbackPositionTicks = 0L))
-                            1 -> triggerOverseerrRequest(target)
+                            1 -> if (jellyfinClient.stremio.enabled) requestDownloadViaBackend(target) else triggerOverseerrRequest(target)
                             2 -> showSeerrAuthDialog(target)
                         }
                     }
@@ -266,7 +270,7 @@ class MediaDetailActivity : AppCompatActivity() {
             val target = selectedEpisode ?: currentItem
             val options = arrayOf(
                 "Play from Beginning (00:00:00)",
-                "Request on Seerr -> Radarr / Sonarr",
+                "Télécharger via Seerr",
                 "Configure Seerr Login / API Key",
                 "Force H.264 Transcode (Safe Mode)"
             )
@@ -275,7 +279,7 @@ class MediaDetailActivity : AppCompatActivity() {
                 .setItems(options) { _, which ->
                     when (which) {
                         0 -> openPlayer(target.copy(playbackPositionTicks = 0L))
-                        1 -> triggerOverseerrRequest(target)
+                        1 -> if (jellyfinClient.stremio.enabled) requestDownloadViaBackend(target) else triggerOverseerrRequest(target)
                         2 -> showSeerrAuthDialog(target)
                         3 -> openPlayer(target.copy(videoCodec = "hevc"))
                     }
@@ -505,7 +509,10 @@ class MediaDetailActivity : AppCompatActivity() {
         }
         castAdapter.submitList(castItems)
 
-        if (!item.isReadyToPlay) {
+        if (item.isSeerrMedia && jellyfinClient.stremio.enabled) {
+            btnPlayEpisode.text = if (item.type == MediaType.SERIES) "Voir les épisodes" else "▶ Lecture"
+            btnPlayEpisode.isEnabled = true
+        } else if (!item.isReadyToPlay) {
             btnPlayEpisode.text = if (item.overseerrStatus == OverseerrStatus.REQUESTED || seerrClient.isAlreadyRequested(item)) {
                 "⏳  Demandé"
             } else {
@@ -546,11 +553,36 @@ class MediaDetailActivity : AppCompatActivity() {
         btnPlayEpisode.text = ep.resumeLabel
     }
 
+    private fun requestDownloadViaBackend(item: MediaItem) {
+        lifecycleScope.launch {
+            val requestItem = if (item.type == MediaType.EPISODE) {
+                val parent = item.seriesId?.let { jellyfinClient.getItemDetails(it) }
+                if (parent == null || parent.type != MediaType.SERIES) {
+                    Toast.makeText(this@MediaDetailActivity, "Ouvrez la fiche de la série pour demander son téléchargement", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                parent
+            } else item
+            jellyfinClient.stremio.engine.requestDownload(requestItem).onSuccess {
+                Toast.makeText(this@MediaDetailActivity, "Demande envoyée à Seerr avec vos réglages habituels", Toast.LENGTH_LONG).show()
+            }.onFailure { Toast.makeText(this@MediaDetailActivity, it.message ?: "La demande a échoué", Toast.LENGTH_LONG).show() }
+        }
+    }
+
     private fun openPlayer(item: MediaItem) {
-        if (item.isSeerrMedia || item.type == MediaType.SERIES) return
-        val intent = Intent(this, PlayerActivity::class.java)
-        intent.putExtra("media_item", item)
-        intent.putExtra("playlist", ArrayList(allEpisodes))
-        startActivity(intent)
+        lifecycleScope.launch {
+            val target = if (jellyfinClient.stremio.enabled && !item.id.startsWith("stremio~") && item.type != MediaType.EPISODE && item.tmdbId != null) {
+                jellyfinClient.stremio.engine.resolveTmdb(item.tmdbId, item.type == MediaType.SERIES) ?: item
+            } else item
+            if (target.isSeerrMedia) {
+                Toast.makeText(this@MediaDetailActivity, "Aucun lien français disponible pour ce titre", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (target.type == MediaType.SERIES) { currentItem = target; bindHeader(target); loadSeasons(); return@launch }
+            val intent = Intent(this@MediaDetailActivity, PlayerActivity::class.java)
+            intent.putExtra("media_item", target)
+            intent.putExtra("playlist", ArrayList(allEpisodes))
+            startActivity(intent)
+        }
     }
 }

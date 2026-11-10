@@ -44,3 +44,7 @@ plezytv_armv7/
 !**/.env.example
 !tools/configure-stremio.py
 webapp/node_modules/
+
+# Plezy Web server entry point (the root server.js pattern above targets scratch files only)
+!webapp/server.js
+.tmp/

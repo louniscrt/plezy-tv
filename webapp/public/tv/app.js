@@ -9,7 +9,11 @@
   const el = (tag, cls, content) => { const node = document.createElement(tag); if (cls) node.className = cls; if (content !== undefined) node.textContent = content; return node; };
   const action = (label, callback, cls = 'opt') => { const b = el('button', cls, label); b.onclick = () => run(callback, b); return b; };
   let page = 'HOME', screen = 'login', hero, detail, episodes = [], pageVersion = 0, detailVersion = 0, searchVersion = 0, qcVersion = 0, lastFocus;
-  let returnFocus, heroTimer;
+  let heroTimer;
+  const pagePositions = new Map();
+  let playerPosition;
+  const rememberPage = () => pagePositions.set(page, window.PlezyNavigation.capture($('screen-main'), $('mainScroll'), document.activeElement));
+  const restorePage = () => window.PlezyNavigation.restore($('screen-main'), $('mainScroll'), pagePositions.get(page));
   let primaryEpisode, primaryEpisodeQueue = [], detailSeasons = [], detailEpisodeCount, detailBusy = false;
   const sameId = (a,b) => String(a||'').replaceAll('-','').toLowerCase() === String(b||'').replaceAll('-','').toLowerCase();
   const detailView = window.PlezyDetail.create({A,$,el,action,picture,
@@ -34,12 +38,16 @@
   }
   function show(next, record = true) {
     const focused = document.activeElement;
+    const previous = screen;
+    if (next !== screen && screen === 'main') rememberPage();
+    if (next === 'player' && screen === 'detail') playerPosition = window.PlezyNavigation.capture($('screen-detail'), $('detailScroll'), focused);
     document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== 'screen-' + next && !(next === 'detail' && s.id === 'screen-main'));
     $('screen-main').inert = next !== 'main';
     if (next !== screen) {
-      if (next === 'detail') returnFocus = focused;
       screen = next;
       if (record) history.pushState({ screen: next }, '', screenUrl(next));
+      if (next === 'main' && (previous === 'detail' || previous === 'player')) restorePage();
+      if (next === 'detail' && previous === 'player') window.PlezyNavigation.restore($('screen-detail'), $('detailScroll'), playerPosition);
     }
   }
   function closeModal() { $('modal').hidden = true; if (lastFocus?.isConnected) lastFocus.focus(); }
@@ -72,7 +80,7 @@
       item.Type === 'Series' ? 'Série' : item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 36000000000) + ' h ' + Math.round(item.RunTimeTicks / 600000000) % 60 + ' min' : 'Film', ...(item.Genres || []).slice(0, 2)].filter(Boolean).join(' · ');
   }
   function status(item) { const s = item.mediaInfo?.status; return s === 5 ? 'Disponible' : s === 4 ? 'Partiellement disponible' : requested.has(item.Id) || s === 2 || s === 3 ? 'Demandé' : 'À demander'; }
-  function playLabel(item) { return item.seerr ? status(item) === 'Disponible' || status(item) === 'Partiellement disponible' ? 'Voir dans Jellyfin' : status(item) === 'Demandé' ? 'Demande en cours' : 'Demander' : item.Type === 'Series' ? 'Voir les épisodes' : item.UserData?.PlaybackPositionTicks ? 'Reprendre' : 'Lecture'; }
+  function playLabel(item) { if (item.seerr && C.stremio) return item.Type === 'Series' ? 'Voir les épisodes' : 'Lecture'; return item.seerr ? status(item) === 'Disponible' || status(item) === 'Partiellement disponible' ? 'Voir dans Jellyfin' : status(item) === 'Demandé' ? 'Demande en cours' : 'Demander' : item.Type === 'Series' ? 'Voir les épisodes' : item.UserData?.PlaybackPositionTicks ? 'Reprendre' : 'Lecture'; }
   function tile(item, index, top = false, resume = false) {
     const button = el('button', top ? 'poster' : resume ? 'tile resume-card' : 'tile');
     const card = top ? el('div','top10') : button;
@@ -136,7 +144,7 @@
     hero = item; $('billboard').classList.remove('hidden');
     backdrop('heroImg', item); text('bbTitle', item.Name); text('bbCat', item.Type === 'Series' || item.Type === 'Episode' ? 'S É R I E' : 'F I L M');
     text('bbMeta', meta(item)); text('bbOverview', item.Overview); text('bbPlayLbl', playLabel(item)); text('bbRating', item.OfficialRating);
-    text('bbCallout', C.demo ? 'Aperçu Plezy · catalogue de démonstration' : item.seerr ? 'Découvrir avec Seerr' : 'Dans votre bibliothèque Jellyfin');
+    text('bbCallout', C.demo ? 'Aperçu Plezy · catalogue de démonstration' : item.stremio || item.seerr && C.stremio ? 'Lecture directe · français' : item.seerr ? 'Découvrir avec Seerr' : 'Dans votre bibliothèque Jellyfin');
     const logo = A.image(item, 'Logo', 600); $('bbLogo').hidden = !logo;
     if (logo) { $('bbLogo').src = logo; $('bbLogo').onerror = () => $('bbLogo').hidden = true; }
   }
@@ -150,13 +158,14 @@
     return { resume: results[0], movies: results[1], shows: results[2] };
   }
   async function navigate(next = page) {
+    if (screen === 'main') rememberPage();
     const version = ++pageVersion; ++searchVersion;
     page = next; show('main'); $('screen-main').classList.toggle('search-mode', next === 'SEARCH');
     document.querySelectorAll('[data-page]').forEach(b => { b.classList.toggle('active', b.dataset.page === page); b.setAttribute('aria-current', b.dataset.page === page ? 'page' : 'false'); });
     $('mainScroll').scrollTop = 0; $('rows').replaceChildren(); $('searchGrid').replaceChildren();
     $('genreShortcuts').replaceChildren(); $('genreShortcuts').hidden = true;
     $('searchBox').hidden = next !== 'SEARCH'; $('billboard').classList.add('hidden');
-    if (next === 'SEARCH') { text('searchHint', 'Recherchez dans votre bibliothèque et dans Seerr.'); $('inSearch').focus(); if ($('inSearch').value) search(); return; }
+    if (next === 'SEARCH') { text('searchHint', 'Recherchez dans votre bibliothèque et dans Seerr.'); $('inSearch').focus(); if ($('inSearch').value) await search(); if(version===pageVersion && screen==='main') restorePage(); return; }
     $('rows').append(el('p', 'loading-state', 'Chargement de votre bibliothèque…'));
     try {
       if (next === 'MYLIST') {
@@ -221,6 +230,8 @@
       if (version !== pageVersion) return;
       $('rows').replaceChildren(); const state = el('div', 'empty-state'); state.append(el('h2', '', 'Bibliothèque inaccessible'), el('p', 'muted', error.message), action('Réessayer', () => navigate(), 'btn btn-white'), action('Réglages', settings, 'btn btn-ghost')); $('rows').append(state);
       if (!C.demo && window.PlezyOffline.list().length) row('Disponibles hors connexion', window.PlezyOffline.list());
+    } finally {
+      if (version === pageVersion && screen === 'main') restorePage();
     }
   }
   async function search() {
@@ -326,20 +337,24 @@
     }
   }
   async function play(item) {
+    if (C.stremio && !item.stremio && !item.demo && !item.offline) {
+      try { item = await A.resolveStremio(item); } catch (error) { if (item.seerr) throw error; }
+    }
     if (item.seerr) return requestTitle(item);
     if (item.Type === 'Series') { await openDetail(item); $('dSeasons').scrollIntoView({ behavior: 'smooth' }); return; }
     await window.PlezyPlayer.start(item, episodes);
   }
   async function requestTitle(item) {
-    if (!C.seerr) return seerrSettings();
-    if (item.mediaInfo?.status >= 4) {
+    if (!C.seerr && !C.stremio) return seerrSettings();
+    if (!C.stremio && item.mediaInfo?.status >= 4) {
       const matches = await A.items({ AnyProviderIdEquals: 'Tmdb.' + item.id });
       if (matches[0]) return openDetail(matches[0]);
       return toast('Ce titre n’est pas encore visible dans votre bibliothèque Jellyfin.');
     }
     if (requested.has(item.Id) || [2, 3].includes(item.mediaInfo?.status)) return toast('Une demande est déjà en cours.');
     modal('Demander « ' + item.Name + ' » ?', [el('p', 'muted', item.Type === 'Series' ? 'Toutes les saisons seront demandées à Seerr. Le traitement dépend des autorisations de votre compte.' : 'La demande sera envoyée à Seerr avec votre compte.'), action('Confirmer la demande', async () => {
-      await A.seerr('request', { method: 'POST', body: { mediaType: item.Type === 'Series' ? 'tv' : 'movie', mediaId: item.id, ...(item.Type === 'Series' ? { seasons: 'all' } : {}) } });
+      if (C.stremio) await A.requestDownload(item);
+      else await A.seerr('request', { method: 'POST', body: { mediaType: item.Type === 'Series' ? 'tv' : 'movie', mediaId: item.id, ...(item.Type === 'Series' ? { seasons: 'all' } : {}) } });
       item.mediaInfo = { ...item.mediaInfo, status: 2 }; requested.add(item.Id);
       if (detail?.Id === item.Id) detailButtons(item);
       if (hero?.Id === item.Id) text('bbPlayLbl', playLabel(item));
@@ -408,7 +423,7 @@
   function back() {
     if (!$('modal').hidden) { closeModal(); return; }
     if (screen === 'player') { window.PlezyPlayer.stop(); return; }
-    if (screen === 'detail') { ++detailVersion; show('main'); if (returnFocus?.isConnected) returnFocus.focus(); if (page === 'MYLIST') run(() => navigate()); }
+    if (screen === 'detail') { ++detailVersion; show('main'); if (page === 'MYLIST') run(() => navigate()); }
     else if (screen === 'main' && page !== 'HOME') run(() => navigate('HOME'));
   }
   window.PlezyUI = { $, el, action, text, toast, run, show, modal, closeModal, openDetail, navigate, play, back, get screen() { return screen; } };
@@ -436,6 +451,7 @@
   $('dFav').onclick = () => run(() => toggleUserData('IsFavorite', 'FavoriteItems'), $('dFav'));
   $('dMore').onclick = () => {
     const selected = detail, options = [action(isSaved(selected) ? 'Retirer de ma liste' : 'Ajouter à ma liste', () => { updateSaved(selected); detailButtons(selected); closeModal(); })];
+    if (!selected.demo && !selected.offline && C.stremio) options.push(action('Télécharger via Seerr', () => { closeModal(); return requestTitle(selected); }));
     if (!selected.seerr) {
       if (!selected.offline) options.push(action(selected.UserData?.Played ? 'Marquer comme non vu' : 'Marquer comme vu',async()=>{await toggleUserData('Played','PlayedItems');closeModal();}));
       options.push(action('Recommencer depuis le début',()=>{closeModal();const target=selected.Type==='Series' ? primaryEpisode : selected;if(target)return window.PlezyPlayer.start({...target,UserData:{...target.UserData,PlaybackPositionTicks:0}},selected.Type==='Series'?primaryEpisodeQueue:episodes);}));

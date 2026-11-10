@@ -48,7 +48,7 @@
       const data=await A.seerr(route,{params:{language:'fr'}});
       return (data.results||[]).filter(item=>item.mediaType!=='person').map(item=>A.fromSeerr(item));
     };
-    A.details=async item=>item.seerr?A.fromSeerr(await A.seerr(`${item.Type==='Series'?'tv':'movie'}/${item.id}`,{params:{language:'fr'}}),item.Type==='Series'?'tv':'movie'):originalDetails.call(A,item);
+    A.details=async item=>item.seerr&&!C.stremio?A.fromSeerr(await A.seerr(`${item.Type==='Series'?'tv':'movie'}/${item.id}`,{params:{language:'fr'}}),item.Type==='Series'?'tv':'movie'):originalDetails.call(A,item);
     let heartbeat;
     A.keepSeerrAlive=()=>{
       if(C.demo || !C.seerr || !(C.seerrKey||C.seerrCookie)) return Promise.resolve(false);

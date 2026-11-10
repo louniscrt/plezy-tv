@@ -14,13 +14,17 @@ android {
         // Cible explicitement Fire OS / Android 5.1 (API Level 22)
         minSdk = 22
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.3.0-Stremio"
+        versionCode = 8
+        versionName = "2.3.1-FR"
         val defaultServer = providers.gradleProperty("plezy.jellyfinServerUrl").orElse("").get()
         require(defaultServer.isEmpty() || URI(defaultServer).let {
             it.scheme in listOf("http", "https") && it.host != null && it.userInfo == null && it.query == null && it.fragment == null
         }) { "plezy.jellyfinServerUrl must be an HTTP(S) server URL without credentials" }
         buildConfigField("String", "JELLYFIN_SERVER_URL", "\"" + defaultServer.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+
+        val stremioBackend = providers.gradleProperty("plezy.stremioBackendUrl").orElse("").get()
+        require(stremioBackend.isEmpty() || URI(stremioBackend).let { it.scheme in listOf("http", "https") && it.host != null && it.userInfo == null && it.query == null && it.fragment == null })
+        buildConfigField("String", "STREMIO_BACKEND_URL", "\"" + stremioBackend.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
 
         // MultiDex requis sur API 22 si le nombre de méthodes dépasse 64K
         multiDexEnabled = true
