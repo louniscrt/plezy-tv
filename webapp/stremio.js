@@ -374,12 +374,41 @@ function createStremio({ config, fetchJSON } = {}) {
       return (data.subtitles || []).filter(s => httpUrl(s.url) && typeof s.lang === 'string');
     }));
     const raw = lists.flat();
-    const frSubs = raw.filter(s => /^(fr|fra|fre|french)/i.test(s.lang)).slice(0, 2).map((s, i) => ({
-      url: s.url, lang: 'fr', language: 'fra', label: i === 0 ? 'Français' : `Français (${i + 1})`
-    }));
-    const enSubs = raw.filter(s => /^(en|eng|english)/i.test(s.lang)).slice(0, 2).map((s, i) => ({
-      url: s.url, lang: 'en', language: 'eng', label: i === 0 ? 'Anglais' : `Anglais (${i + 1})`
-    }));
+
+    const isQualitySub = s => !/(cam|telesync|\bts\b|hdts|hdtscr|screener|\bscr\b)/i.test(s.movieReleaseName || s.subtitleFileName || '');
+    const cleanSubs = raw.filter(isQualitySub).length > 0 ? raw.filter(isQualitySub) : raw;
+
+    const scoreSub = s => {
+      let score = Number(s.g || 0);
+      const name = (s.movieReleaseName || s.subtitleFileName || '').toLowerCase();
+      if (/bluray|bdrip|remux/i.test(name)) score += 50;
+      else if (/web-dl|webrip|web\b/i.test(name)) score += 40;
+      if (/(cam|telesync|\bts\b|hdts|scr)/i.test(name)) score -= 100;
+      return score;
+    };
+
+    const frSubs = cleanSubs
+      .filter(s => /^(fr|fra|fre|french)/i.test(s.lang))
+      .sort((a, b) => scoreSub(b) - scoreSub(a))
+      .slice(0, 3)
+      .map((s, i) => ({
+        url: s.url,
+        lang: 'fr',
+        language: 'fra',
+        label: i === 0 ? 'Français' : `Français (${i + 1})`
+      }));
+
+    const enSubs = cleanSubs
+      .filter(s => /^(en|eng|english)/i.test(s.lang))
+      .sort((a, b) => scoreSub(b) - scoreSub(a))
+      .slice(0, 3)
+      .map((s, i) => ({
+        url: s.url,
+        lang: 'en',
+        language: 'eng',
+        label: i === 0 ? 'Anglais' : `Anglais (${i + 1})`
+      }));
+
     return [...frSubs, ...enSubs];
   }
   async function search(query) {

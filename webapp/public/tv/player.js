@@ -72,7 +72,7 @@
         }
       }
     }
-    return media?.stremio && media.Type === 'Episode' ? {start:10,end:88,heuristic:true} : null;
+    return media?.stremio && media.Type === 'Episode' ? { start: 10, end: 85, heuristic: true } : null;
   }
   function outroStart(media) {
     const segments = Array.isArray(media?.MediaSegments) ? media.MediaSegments : media?.MediaSegments?.Items || [];
@@ -97,12 +97,7 @@
     if (!range) return;
     dismissedIntro = true;
     skipIntro.hidden = true;
-    const cur = position();
-    const nextChapters = (item?.Chapters || plan?.chapters || [])
-      .map(c => Number(c.StartPositionTicks) / 10000000)
-      .filter(t => Number.isFinite(t) && t > cur + 15 && t <= cur + 110);
-    const target = !range.heuristic ? range.end : nextChapters.length ? nextChapters[0] : (cur < 85 ? 85 : Math.min(cur + 30, Math.max(cur, duration() - 10)));
-    seek(target);
+    seek(range.end);
     updatePrompts();
   });
   const nextEpisode = action('Épisode suivant', () => next && start(next, episodeList));
@@ -126,21 +121,53 @@
   function applySubStyle() {
     try { window.localStorage?.setItem('plezy.web.subStyle', JSON.stringify(subPrefs)); } catch {}
     const sizeMap = { '80%': '22px', '100%': '28px', '130%': '36px', '160%': '46px' };
-    const posMap = { '0': '18%', '-6vh': '24%', '-12vh': '32%' };
+    const posMap = { '0': '22%', '-6vh': '28%', '-12vh': '35%' };
+    const sizeVal = sizeMap[subPrefs.size] || subPrefs.size || '28px';
+    const colorVal = subPrefs.color || '#ffffff';
+    const bgVal = subPrefs.bg || 'rgba(0,0,0,0.75)';
+    const bottomVal = posMap[subPrefs.pos] || '22%';
     const root = $('screen-player');
     if (root?.style) {
       if (typeof root.style.setProperty === 'function') {
-        root.style.setProperty('--sub-size', sizeMap[subPrefs.size] || subPrefs.size || '28px');
-        root.style.setProperty('--sub-color', subPrefs.color || '#ffffff');
-        root.style.setProperty('--sub-bg', subPrefs.bg || 'rgba(0,0,0,0.72)');
-        root.style.setProperty('--sub-bottom', posMap[subPrefs.pos] || '18%');
+        root.style.setProperty('--sub-size', sizeVal);
+        root.style.setProperty('--sub-color', colorVal);
+        root.style.setProperty('--sub-bg', bgVal);
+        root.style.setProperty('--sub-bottom', bottomVal);
       } else {
-        root.style['--sub-size'] = sizeMap[subPrefs.size] || subPrefs.size || '28px';
-        root.style['--sub-color'] = subPrefs.color || '#ffffff';
-        root.style['--sub-bg'] = subPrefs.bg || 'rgba(0,0,0,0.72)';
-        root.style['--sub-bottom'] = posMap[subPrefs.pos] || '18%';
+        root.style['--sub-size'] = sizeVal;
+        root.style['--sub-color'] = colorVal;
+        root.style['--sub-bg'] = bgVal;
+        root.style['--sub-bottom'] = bottomVal;
       }
     }
+    let styleEl = document.getElementById('plezySubStyle');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'plezySubStyle';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      #screen-player {
+        --sub-size: ${sizeVal} !important;
+        --sub-color: ${colorVal} !important;
+        --sub-bg: ${bgVal} !important;
+        --sub-bottom: ${bottomVal} !important;
+      }
+      #screen-player .plezy-subtitles {
+        bottom: ${bottomVal} !important;
+      }
+      #screen-player .plezy-sub-text {
+        font-size: ${sizeVal} !important;
+        color: ${colorVal} !important;
+        background-color: ${bgVal} !important;
+      }
+      video::cue {
+        font-size: ${sizeVal} !important;
+        color: ${colorVal} !important;
+        background-color: ${bgVal} !important;
+        line-height: 1.35 !important;
+      }
+    `;
   }
   applySubStyle();
   function updateSubtitleOverlay() {
@@ -196,14 +223,13 @@
     const inIntro = active && !dismissedIntro && range && current >= range.start && current < range.end;
     if (inIntro) {
       if (!introShownAt) introShownAt = current;
-      if (current - introShownAt > 12) {
+      if (current - introShownAt > 7) {
         dismissedIntro = true;
         skipIntro.hidden = true;
       } else {
         skipIntro.hidden = false;
       }
     } else {
-      if (!inIntro && range && current >= range.end) dismissedIntro = true;
       skipIntro.hidden = true;
     }
     const outro = outroStart(item);
@@ -273,6 +299,11 @@
   function applyExternalSubtitles() {
     for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
     subText.textContent = ''; subContainer.hidden = true;
+    if (video.textTracks) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = 'disabled';
+      }
+    }
     if (!item?.stremio || subtitle < 0) return;
     const chosen = streams('Subtitle').find(s => s.Index === subtitle && s.DeliveryUrl);
     if (!chosen || !document.createElement) return;

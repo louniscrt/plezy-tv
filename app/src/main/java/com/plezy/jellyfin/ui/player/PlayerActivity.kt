@@ -402,11 +402,14 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun applySubtitleStyle() {
         val prefs = getSharedPreferences("plezy_sub_prefs", MODE_PRIVATE)
-        val scale = prefs.getFloat("scale", 0.0533f)
+        val scale = prefs.getFloat("scale", 0.058f)
         val fg = prefs.getInt("fg", android.graphics.Color.WHITE)
-        val bg = prefs.getInt("bg", android.graphics.Color.argb(165, 0, 0, 0))
-        val bottom = prefs.getFloat("bottom", 0.16f)
+        val bg = prefs.getInt("bg", android.graphics.Color.argb(190, 0, 0, 0))
+        val bottom = prefs.getFloat("bottom", 0.20f)
         playerView.subtitleView?.apply {
+            setUserDefaultStyle(false)
+            setUserDefaultTextSize(false)
+            setApplyEmbeddedStyles(false)
             setFractionalTextSize(scale)
             setBottomPaddingFraction(bottom)
             setStyle(
@@ -444,16 +447,16 @@ class PlayerActivity : AppCompatActivity() {
             .setItems(options) { _, which ->
                 val ed = prefs.edit()
                 when (which) {
-                    0 -> ed.putFloat("scale", 0.042f)
-                    1 -> ed.putFloat("scale", 0.0533f)
-                    2 -> ed.putFloat("scale", 0.068f)
-                    3 -> ed.putFloat("scale", 0.082f)
+                    0 -> ed.putFloat("scale", 0.046f)
+                    1 -> ed.putFloat("scale", 0.058f)
+                    2 -> ed.putFloat("scale", 0.072f)
+                    3 -> ed.putFloat("scale", 0.088f)
                     4 -> ed.putInt("fg", android.graphics.Color.WHITE)
                     5 -> ed.putInt("fg", android.graphics.Color.rgb(255, 215, 0))
                     6 -> ed.putInt("fg", android.graphics.Color.CYAN)
-                    7 -> ed.putInt("bg", android.graphics.Color.argb(165, 0, 0, 0))
+                    7 -> ed.putInt("bg", android.graphics.Color.argb(190, 0, 0, 0))
                     8 -> ed.putInt("bg", android.graphics.Color.TRANSPARENT)
-                    9 -> ed.putInt("bg", android.graphics.Color.argb(240, 0, 0, 0))
+                    9 -> ed.putInt("bg", android.graphics.Color.argb(250, 0, 0, 0))
                     10 -> ed.putFloat("bottom", 0.16f)
                     11 -> ed.putFloat("bottom", 0.22f)
                     12 -> ed.putFloat("bottom", 0.30f)
@@ -543,14 +546,29 @@ class PlayerActivity : AppCompatActivity() {
                         chosenAudio?.displayTitle?.contains("Anglais", ignoreCase = true) == true ||
                         chosenAudio?.displayTitle?.contains("English", ignoreCase = true) == true
                     val langCode = if (wantEn) "en" else "fr"
+
+                    // Quand le film/programme est en français, désactiver les sous-titres
+                    if (!wantEn && (selectedSubtitleIndex == null || selectedSubtitleIndex == -1)) {
+                        selectedSubtitleIndex = -1
+                    } else if (wantEn && (selectedSubtitleIndex == null || selectedSubtitleIndex == -1)) {
+                        val frSub = selectedItem.subtitleTracks.firstOrNull {
+                            it.language.startsWith("fr", ignoreCase = true) || it.displayTitle.contains("Français", ignoreCase = true)
+                        }
+                        if (frSub != null) selectedSubtitleIndex = frSub.index
+                    }
+
                     val chosenSub = selectedItem.subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex }
                     val subDisabled = selectedSubtitleIndex == null || selectedSubtitleIndex!! < 0 || chosenSub?.language == "off"
                     val subLang = chosenSub?.language?.takeIf { it != "off" } ?: "fr"
-                    exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                    val paramsBuilder = exo.trackSelectionParameters.buildUpon()
                         .setPreferredAudioLanguage(langCode)
-                        .setPreferredTextLanguage(subLang)
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subDisabled)
-                        .build()
+                    if (!subDisabled) {
+                        paramsBuilder.setPreferredTextLanguage(subLang)
+                    } else {
+                        paramsBuilder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    }
+                    exo.trackSelectionParameters = paramsBuilder.build()
                     tvStreamModeBadge.text = if (stremioHlsFallback) {
                         if (wantEn) "HLS 1080p/4K · Audio EN" else "HLS 1080p/4K · Audio FR (Principal)"
                     } else {
