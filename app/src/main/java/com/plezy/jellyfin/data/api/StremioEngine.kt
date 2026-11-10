@@ -62,6 +62,16 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
             return strong.containsMatchIn(release) || french.containsMatchIn(tags) ||
                 Regex("(?:audio|language|langue)\\s*[:=-]\\s*(?:french|fran[cç]ais|fr)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
         }
+        fun isTrueFrenchStream(stream: JsonObject): Boolean {
+            val hints = stream.getAsJsonObject("behaviorHints")
+            val text = listOfNotNull(stream.text("name"), stream.text("title"), stream.text("description"), hints?.text("filename")).joinToString(" ")
+            return Regex("(?:^|[^a-z0-9])(?:truefrench|vff)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        }
+        fun isVfqStream(stream: JsonObject): Boolean {
+            val hints = stream.getAsJsonObject("behaviorHints")
+            val text = listOfNotNull(stream.text("name"), stream.text("title"), stream.text("description"), hints?.text("filename")).joinToString(" ")
+            return Regex("(?:^|[^a-z0-9])(?:vfq|vf2)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) && !isTrueFrenchStream(stream)
+        }
         fun isEnglishStream(stream: JsonObject): Boolean {
             val languages = listOfNotNull(stream.text("language")) + stream.strings("languages")
             if (languages.any { Regex("^(en|eng|english)(?:[-_].*)?$", RegexOption.IGNORE_CASE).matches(it) }) return true
@@ -265,13 +275,29 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
             json("$base/stream/$type/${encode(id)}.json", 30000).getAsJsonArray("streams")?.mapNotNull {
                 val s = it.asJsonObject; val url = safeUrl(s.text("url")) ?: return@mapNotNull null
                 val hints = s.getAsJsonObject("behaviorHints")
-                if (hints?.get("notWebReady")?.asBoolean == true || Regex("rd\\s+download", RegexOption.IGNORE_CASE).containsMatchIn(s.text("name") ?: "")) return@mapNotNull null
+                val name = s.text("name") ?: ""
+                val title = s.text("title") ?: ""
+                val fn = hints?.text("filename") ?: ""
+                val allText = "$name $title $fn".lowercase()
+                if (hints?.get("notWebReady")?.asBoolean == true || Regex("rd\\s+download|\\[❌\\]|uncached|not\\s*cached", RegexOption.IGNORE_CASE).containsMatchIn("$name $title")) return@mapNotNull null
+                if (Regex("\\b(?:watch\\s+.*\\s+free|flixmomo|cam|camrip|hdcam|telesync|hdts|hdtscr|tc|scr|dvdscr)\\b", RegexOption.IGNORE_CASE).containsMatchIn(allText)) return@mapNotNull null
                 val headers = hints?.getAsJsonObject("proxyHeaders")?.getAsJsonObject("request")?.entrySet()?.mapNotNull { (k, v) ->
                     if (k.lowercase() !in listOf("user-agent", "referer", "origin", "authorization", "cookie") || !v.isJsonPrimitive || v.asString.any { it == '\r' || it == '\n' }) null else k to v.asString
                 }?.toMap().orEmpty()
-                val info = listOfNotNull(s.text("name"), s.text("title"), hints?.text("filename")).joinToString(" ")
-                val dualBonus = if (isFrenchStream(s) && isEnglishStream(s)) 20 else 0
-                Triple(s, Stream(url, headers, streamPriority(info) + dualBonus), isFrenchStream(s))
+                val info = listOfNotNull(name, title, fn).joinToString(" ")
+                val fr = isFrenchStream(s)
+                val trueFr = isTrueFrenchStream(s)
+                val vfq = isVfqStream(s)
+                val multi = isMultiStream(s)
+                val langBonus = when {
+                    trueFr -> 140
+                    multi && fr -> 115
+                    fr && !vfq -> 85
+                    vfq -> -35
+                    else -> 0
+                }
+                val dualBonus = if (fr && isEnglishStream(s)) 25 else 0
+                Triple(s, Stream(url, headers, streamPriority(info) + langBonus + dualBonus), fr)
             }.orEmpty()
         }.orEmpty() } }.awaitAll().flatten()
         val chosen = if (!frenchOnly) {

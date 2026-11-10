@@ -127,3 +127,35 @@ test('resolving Seerr titles for playback is read-only; download uses only the e
  const result=await engine.requestMedia({id:resolved.item.Id,type:'movie'});assert.equal(writes.length,1);assert.deepEqual(writes[0].body,{mediaType:'movie',mediaId:603});assert.deepEqual(result,{ok:true,requestId:42,status:1});assert.ok(!JSON.stringify(result).includes('private'));
  assert.equal(writes[0].body.serverId,undefined);assert.equal(writes[0].body.profileId,undefined);assert.equal(writes[0].body.rootFolder,undefined);
 });
+
+test('stream indexing filters out camrips, spam, uncached and wrong-year releases, and prioritizes VFF over VFQ', async () => {
+  const { isTrueFrenchStream, isVfqStream } = require('../stremio');
+  assert.equal(isTrueFrenchStream({ behaviorHints: { filename: 'Film.2026.MULTi.VFF.1080p.mkv' } }), true);
+  assert.equal(isVfqStream({ behaviorHints: { filename: 'Film.2026.MULTi.VFQ.2160p.mkv' } }), true);
+
+  const engine = createStremio({
+    config: {
+      frenchOnly: true,
+      metadataManifest: false,
+      addons: ['https://fixture.test/manifest.json']
+    },
+    fetchJSON: async url => {
+      if (url.endsWith('manifest.json')) return { types: ['movie'], resources: ['stream'] };
+      return {
+        streams: [
+          { url: 'https://cdn.test/wrong-year', title: 'Resident Evil 1997 1080p WEB' },
+          { url: 'https://cdn.test/camrip', title: 'Resident.Evil.2026.camrip.1080p' },
+          { url: 'https://cdn.test/uncached', name: '[❌] Comet', title: 'Resident.Evil.2026' },
+          { url: 'https://cdn.test/spam', title: 'Watch Resident Evil (2026) Free HD - Flixmomo.mp4' },
+          { url: 'https://cdn.test/vfq-4k', title: 'Resident.Evil.2026.MULTi.VFQ.2160p.HDR.WEB.H265.mkv', behaviorHints: { filename: 'Resident.Evil.2026.MULTi.VFQ.2160p.HDR.WEB.H265.mkv' } },
+          { url: 'https://cdn.test/multi-vff-1080p', title: 'Resident.Evil.2026.MULTi.1080p.WEB.H265-YTO\nMulti Audio / 🇬🇧 / 🇫🇷', behaviorHints: { filename: 'Resident.Evil.2026.MULTi.1080p.WEB.H265-YTO.mkv' } }
+        ]
+      };
+    }
+  });
+
+  const streams = await engine.streams(encodeId('movie', 'tt35538033'), { year: 2026 });
+  assert.equal(streams.length, 2);
+  assert.equal(streams[0].url, 'https://cdn.test/multi-vff-1080p');
+  assert.equal(streams[1].url, 'https://cdn.test/vfq-4k');
+});

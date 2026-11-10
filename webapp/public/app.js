@@ -76,8 +76,10 @@
     button.setAttribute('aria-label', item.Name + (item.Type === 'Episode' ? ' — ' + item.SeriesName : ''));
     const holder = top ? el('div', 'poster') : button;
     if (top) { button.append(el('span', 'num', index + 1), holder); }
+    const year = item.ProductionYear || (item.releaseDate ? String(item.releaseDate).slice(0, 4) : '') || (item.firstAirDate ? String(item.firstAirDate).slice(0, 4) : '');
+    const title = year && page === 'SEARCH' ? `${item.Name} (${year})` : item.Name;
     holder.append(el('span', 't-fallback', item.Name), picture(item, top || page === 'SEARCH' ? 'Primary' : 'Backdrop', 600));
-    holder.append(el('span', 't-name', item.Name));
+    holder.append(el('span', 't-name', title));
     if (item.seerr) holder.append(el('span', 't-seerr' + (status(item) === 'Demandé' ? ' req' : status(item) === 'Disponible' ? ' ok' : ''), status(item)));
     if (item.UserData?.PlaybackPositionTicks && item.RunTimeTicks) {
       const progress = el('span', 't-prog'), fill = el('i'); fill.style.width = Math.min(100, item.UserData.PlaybackPositionTicks / item.RunTimeTicks * 100) + '%'; progress.append(fill); holder.append(progress);

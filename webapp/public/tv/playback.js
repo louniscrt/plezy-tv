@@ -27,7 +27,8 @@
   }
   async function negotiate(item, { force = false, start = 0, audio, subtitle = -1, bitrate = 0, mp4 = true, webm = true, hevc = false, signal } = {}) {
     if (item.stremio) {
-      const result = await A.stremio('streams', { id: item.Id }, signal);
+      const year = item.ProductionYear || (item.releaseDate ? Number(item.releaseDate.slice(0, 4)) : undefined);
+      const result = await A.stremio('streams', { id: item.Id, ...(year ? { year } : {}) }, signal);
       const wantEnglish = audio === 2;
       const primary = result.streams || [];
       const fallback = (result.fallbackStreams || []).map(s => ({ ...s, fallback: true }));

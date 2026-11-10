@@ -102,7 +102,9 @@
       if (logo) { const image=el('img','resume-title-logo');image.alt=item.SeriesName||item.Name;image.src=logo;holder.append(image); }
       else holder.append(el('span','resume-title',item.SeriesName||item.Name));
     }
-    holder.append(el('span', 't-name', item.Name));
+    const year = item.ProductionYear || (item.releaseDate ? String(item.releaseDate).slice(0, 4) : '') || (item.firstAirDate ? String(item.firstAirDate).slice(0, 4) : '');
+    const title = year && page === 'SEARCH' ? `${item.Name} (${year})` : item.Name;
+    holder.append(el('span', 't-name', title));
     if (item.seerr) holder.append(el('span', 't-seerr' + (status(item) === 'Demandé' ? ' req' : status(item) === 'Disponible' ? ' ok' : ''), status(item)));
     if (item.UserData?.PlaybackPositionTicks && item.RunTimeTicks) {
       const progress = el('span', 't-prog'), fill = el('i'); fill.style.width = Math.min(100, item.UserData.PlaybackPositionTicks / item.RunTimeTicks * 100) + '%'; progress.append(fill); holder.append(progress);

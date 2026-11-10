@@ -63,6 +63,14 @@ function hasExplicitFrenchAudio(stream) {
   const french = /(?:^|[^a-z0-9])(?:french|fran[cç]ais)(?:$|[^a-z0-9])/i;
   return strong.test(release) || french.test(tags) || /(?:audio|language|langue)\s*[:=-]\s*(?:french|fran[cç]ais|fr)\b/i.test(text);
 }
+function isTrueFrenchStream(stream) {
+  const text = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename].filter(Boolean).join(' ');
+  return /(?:^|[^a-z0-9])(?:truefrench|vff)\b/i.test(text);
+}
+function isVfqStream(stream) {
+  const text = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename].filter(Boolean).join(' ');
+  return /(?:^|[^a-z0-9])(?:vfq|vf2)\b/i.test(text) && !isTrueFrenchStream(stream);
+}
 function isFrenchStream(stream) {
   if (hasExplicitFrenchAudio(stream)) return true;
   const text = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename].filter(Boolean).join(' ');
@@ -96,19 +104,38 @@ function streamPriority(stream) {
   const rawText = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename].filter(Boolean).join(' ');
   const info = rawText.toLowerCase();
   const sizeGb = stream.behaviorHints?.videoSize ? stream.behaviorHints.videoSize / (1024 * 1024 * 1024) : parseSizeGb(info);
-  const sizeScore = sizeGb > 0 ? (sizeGb >= 0.8 && sizeGb <= 9.5 ? 50 : sizeGb <= 15 ? 20 : sizeGb > 26 ? -95 : sizeGb > 16 ? -45 : sizeGb < 0.25 ? -120 : 0) : 0;
+  const sizeScore = sizeGb > 0 ? (sizeGb >= 0.8 && sizeGb <= 14 ? 50 : sizeGb <= 22 ? 20 : sizeGb > 26 ? -95 : sizeGb > 22 ? -45 : sizeGb < 0.25 ? -140 : 0) : 0;
   const remuxPenalty = /\b(?:remux|bdremux|brremux|uhd[ ._-]?remux|complete[ ._-]?bluray)\b/.test(info) ? -90 : 0;
-  const webBonus = /\b(?:web[ ._-]?dl|webrip)\b/.test(info) ? 35 : /\b(?:bluray|bdrip)\b/.test(info) ? 15 : 0;
-  const explicitFr = hasExplicitFrenchAudio(stream);
-  const manyForeignFlags = (rawText.match(/🇯🇵|🇷🇺|🇮🇹|🇵🇹|🇪🇸|🇰🇷|🇨🇳|🇸🇦|🇹🇷|🇵🇱|🇨🇿|🇩🇪|🇮🇳|🇺🇦/g) || []).length >= 3;
-  const langScore = explicitFr ? 75 : (manyForeignFlags ? -65 : 0);
-  const dualBonus = explicitFr && (isMultiStream(stream) || isEnglishStream(stream)) ? 35 : 0;
-  const resScore = /1080p/.test(info) ? 85 : /2160p|\b4k\b|\buhd\b/.test(info) ? 50 : /720p/.test(info) ? -60 : /\b(?:480p|576p|360p|cam|ts|scr)\b/.test(info) ? -140 : 0;
+  const webBonus = /\b(?:web[ ._-]?dl|webrip)\b/.test(info) ? 40 : /\b(?:bluray|bdrip)\b/.test(info) ? 20 : 0;
+  
+  const fr = isFrenchStream(stream);
+  const trueFr = isTrueFrenchStream(stream);
+  const vfq = isVfqStream(stream);
+  const multi = isMultiStream(stream);
+
+  let langScore = 0;
+  if (trueFr) {
+    langScore = 140;
+  } else if (multi && fr) {
+    langScore = 120;
+  } else if (fr && !vfq) {
+    langScore = 85;
+  } else if (vfq) {
+    langScore = -30;
+  } else {
+    const manyForeignFlags = (rawText.match(/🇯🇵|🇷🇺|🇮🇹|🇵🇹|🇪🇸|🇰🇷|🇨🇳|🇸🇦|🇹🇷|🇵🇱|🇨🇿|🇩🇪|🇮🇳|🇺🇦/g) || []).length >= 3;
+    langScore = manyForeignFlags ? -75 : 0;
+  }
+
+  const dualBonus = fr && (multi || isEnglishStream(stream)) ? 30 : 0;
+  const resScore = /1080p/.test(info) ? 90 : /2160p|\b4k\b|\buhd\b/.test(info) ? 55 : /720p/.test(info) ? -60 : /\b(?:480p|576p|360p)\b/.test(info) ? -140 : 0;
+  const camPenalty = /\b(?:cam|camrip|hdcam|telesync|hdts|hdtscr|telecine|tc|scr|dvdscr|r5|screener)\b/.test(info) ? -500 : 0;
+
   return (/h[ ._-]?264|x264|avc/.test(info) ? 120 : 0) +
     (/\.mp4\b/.test(info) ? 45 : /\.webm\b/.test(info) ? 20 : 0) +
     resScore -
-    (/hevc|h[ ._-]?265|x265|av1|dolby.?vision|dovi/.test(info) ? 35 : 0) +
-    sizeScore + remuxPenalty + webBonus + langScore + dualBonus;
+    (/hevc|h[ ._-]?265|x265|av1|dolby.?vision|dovi/.test(info) ? 25 : 0) +
+    sizeScore + remuxPenalty + webBonus + langScore + dualBonus + camPenalty;
 }
 async function parallel(values, fn, concurrency = 8) {
   let next = 0; const results = [];
@@ -269,13 +296,38 @@ function createStremio({ config, fetchJSON } = {}) {
   }
   async function streams(key, options = {}) {
     const { type, id } = decodeId(key);
+    let targetYear = options.year;
+    if (!targetYear) {
+      try {
+        const hit = [...cache.entries()].find(([k]) => k.includes('/meta/' + key));
+        if (hit) {
+          const val = await Promise.resolve(hit[1].promise).catch(() => null);
+          targetYear = Number(val?.item?.ProductionYear || val?.meta?.releaseInfo || val?.meta?.year || 0) || undefined;
+        }
+      } catch { /* ignore */ }
+    }
     const addons = (await manifests()).filter(a => supports(a.manifest, 'stream', type, id));
     const lists = await parallel(addons, ({ base }) => cached(base + '/stream/all/' + key, 30000, async () => {
-      const data = await readJSON(`${base}/stream/${type}/${encodeURIComponent(id)}.json`);
+      const data = await readJSON(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {}, { timeout: 4500 });
       return (data.streams || []).filter(s => {
         if (!httpUrl(s.url) || s.behaviorHints?.notWebReady || /rd\s+download/i.test(s.name || '')) return false;
-        const fn = s.behaviorHints?.filename || s.title || '';
+        const name = String(s.name || '');
+        const title = String(s.title || '');
+        const fn = String(s.behaviorHints?.filename || '');
+        const all = (name + ' ' + title + ' ' + fn).toLowerCase();
+
+        if (/\[❌\]|\b(?:uncached|not\s*cached|download\s*failed)\b/i.test(name || title)) return false;
+        if (/\b(?:watch\s+.*\s+free|flixmomo|fmovies|123movies)\b/i.test(all) || /\.(?:exe|rar|zip|iso|txt|nfo)$/i.test(fn)) return false;
         if (/^(?:ncop|nced|sample|trailer)\b/i.test(fn)) return false;
+        if (/\b(?:cam|camrip|hdcam|telesync|hdts|hdtscr|telecine|tc|scr|dvdscr|r5|screener)\b/i.test(all)) return false;
+
+        if (targetYear && targetYear >= 1900) {
+          const yearMatch = /\b((?:19|20)\d{2})\b/.exec(fn || title);
+          if (yearMatch) {
+            const streamYear = parseInt(yearMatch[1], 10);
+            if (Math.abs(streamYear - targetYear) >= 2) return false;
+          }
+        }
         return true;
       }).map(s => {
         const headers = {};
@@ -332,8 +384,24 @@ function createStremio({ config, fetchJSON } = {}) {
   }
   async function search(query) {
     if (!query?.trim()) return { results: [] };
-    const data = await metadataJSON('search?query=' + encodeURIComponent(query.trim())) || { results: [] };
-    const filtered = (data.results || []).filter(isWatchableMeta);
+    const trimmed = query.trim();
+    const yearMatch = /\b((?:19|20)\d{2})\b/.exec(trimmed);
+    const searchYear = yearMatch ? parseInt(yearMatch[1], 10) : null;
+    const cleanQuery = searchYear ? trimmed.replace(yearMatch[0], '').replace(/\s+/g, ' ').trim() : trimmed;
+
+    const data = await metadataJSON('search?query=' + encodeURIComponent(cleanQuery || trimmed)) || { results: [] };
+    let filtered = (data.results || []).filter(isWatchableMeta);
+
+    if (searchYear && filtered.length) {
+      filtered.sort((a, b) => {
+        const yA = Number((a.releaseDate || a.firstAirDate || '').slice(0, 4));
+        const yB = Number((b.releaseDate || b.firstAirDate || '').slice(0, 4));
+        const matchA = yA === searchYear ? 1 : 0;
+        const matchB = yB === searchYear ? 1 : 0;
+        return matchB - matchA;
+      });
+    }
+
     return { ...data, results: filtered };
   }
   async function resolveMedia({ id, tmdbId, type = 'movie' }) {
@@ -382,4 +450,4 @@ function createStremio({ config, fetchJSON } = {}) {
   function getTicket(id) { const entry = tickets.get(id); return entry && entry.until > Date.now() ? entry : null; }
   return { enabled, catalog, meta, episodes, streams, subtitles, ticket, getTicket, resolveMedia, requestMedia, search };
 }
-module.exports = { createStremio, encodeId, decodeId, supports, baseUrl, media, streamPriority, isFrenchStream, isEnglishStream, isMultiStream, hasExplicitFrenchAudio };
+module.exports = { createStremio, encodeId, decodeId, supports, baseUrl, media, streamPriority, isFrenchStream, isEnglishStream, isMultiStream, hasExplicitFrenchAudio, isTrueFrenchStream, isVfqStream };

@@ -173,8 +173,9 @@ function createServer(options = {}) {
         if (route === 'meta') return send(200, (await stremio.meta(id)).item);
         if (route === 'episodes') return send(200, { Items: await stremio.episodes(id) });
         if (route === 'streams') {
+          const year = Number(url.searchParams.get('year')) || undefined;
           const [raw, rawSubs] = await Promise.all([
-            stremio.streams(id, { includeVariants: true }),
+            stremio.streams(id, { includeVariants: true, year }),
             typeof stremio.subtitles === 'function'
               ? Promise.race([stremio.subtitles(id).catch(() => []), new Promise(r => setTimeout(() => r([]), 5000))])
               : Promise.resolve([])
