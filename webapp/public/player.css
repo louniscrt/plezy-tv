@@ -1,5 +1,9 @@
 /* Lecteur Plezy : commandes discrètes inspirées de la référence fournie. */
-#screen-player{--player-pad:clamp(16px,2.5vw,52px);--player-accent:#e50914;color:#fff}
+#screen-player{--player-pad:clamp(16px,2.5vw,52px);--player-accent:#e50914;--sub-size:26px;--sub-bottom:16%;--sub-color:#ffffff;--sub-bg:rgba(0,0,0,0.72);color:#fff}
+#screen-player .plezy-subtitles{position:absolute;left:4%;right:4%;bottom:var(--sub-bottom,16%);display:flex;justify-content:center;align-items:center;text-align:center;pointer-events:none;z-index:20;transition:bottom .22s ease-out}
+#screen-player .plezy-subtitles[hidden]{display:none!important}
+#screen-player .plezy-sub-text{display:inline-block;max-width:85%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-weight:600;font-size:var(--sub-size,26px);line-height:1.35;color:var(--sub-color,#fff);background-color:var(--sub-bg,rgba(0,0,0,.72));padding:.26em .7em;border-radius:6px;text-shadow:0 2px 4px rgba(0,0,0,.95);white-space:pre-line;pointer-events:none;word-break:break-word}
+#screen-player:not(:has(.player-ui.hide)) .plezy-subtitles{bottom:calc(var(--sub-bottom,16%) + 7%)}
 #screen-player .player-ui{background:linear-gradient(180deg,#0009 0,transparent 20%,transparent 62%,#000e 100%);pointer-events:none}
 #screen-player[data-state="paused"] .player-ui{background:linear-gradient(90deg,#000c,#0005 80%),linear-gradient(0deg,#000c,transparent 45%)}
 #screen-player:has(.player-ui.hide):not([data-state="paused"]):not([data-state="error"]){cursor:none}

@@ -196,7 +196,7 @@ test('Web and TV show Netflix-style intro and next-episode popups; Real-Debrid e
   const [skip,next]=prompts.children;
   f.video.currentTime=1;f.video.ontimeupdate();assert.equal(skip.hidden,true);
   f.video.currentTime=30;f.video.ontimeupdate();assert.equal(skip.hidden,false);
-  await skip.callback();assert.equal(f.video.currentTime,115);assert.equal(skip.hidden,true);
+  await skip.callback();assert.equal(f.video.currentTime,85);assert.equal(skip.hidden,true);
   f.video.currentTime=710;f.video.ontimeupdate();assert.equal(next.hidden,false);assert.match(next.textContent,/Épisode suivant/);
  }
 });

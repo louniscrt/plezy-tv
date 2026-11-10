@@ -118,9 +118,10 @@ function createServer(options = {}) {
         const entry = stremio.getTicket(subId);
         if (!entry) return send(404, { error: 'Sous-titres expirés' });
         const wantedLang = url.searchParams.get('lang');
-        if (wantedLang === 'fr' || wantedLang === 'en') {
-          const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
-          return require('./stremio-media').subtitleMedia(req, res, subId, { lang: wantedLang, identity: entry.url + JSON.stringify(entry.headers), upstreamUrl: entry.url, hasCustomHeaders });
+        const streamIdx = url.searchParams.get('stream');
+        const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
+        if (streamIdx !== null || wantedLang === 'fr' || wantedLang === 'en' || (!entry.url.includes('.srt') && !entry.url.includes('.vtt'))) {
+          return require('./stremio-media').subtitleMedia(req, res, subId, { stream: streamIdx, lang: wantedLang || 'fr', identity: entry.url + JSON.stringify(entry.headers), upstreamUrl: entry.url, hasCustomHeaders });
         }
         fetch(entry.url, { signal: AbortSignal.timeout(8000), headers: entry.headers || {} })
           .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))

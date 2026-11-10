@@ -66,13 +66,31 @@
       if (Array.isArray(info?.chapters) && info.chapters.length && !item.Chapters?.length) item.Chapters = info.chapters;
       const hlsParts = [...(wantEnglish ? ['lang=en'] : []), ...(useFallback || forcedCompatible ? ['fallback=1'] : [])];
       const hlsQuery = hlsParts.length ? `?${hlsParts.join('&')}` : '';
-      const subStreams = (result.subtitles || []).map(s => ({
-        Type: 'Subtitle',
-        Index: s.index,
-        Language: s.language || s.lang,
-        DisplayTitle: s.label,
-        DeliveryUrl: s.url
-      }));
+      const subStreams = [];
+      const mediaTicketMatch = /\/api\/stremio\/(?:media|hls)\/([a-f0-9]{48})/.exec(chosen.url);
+      const mediaTicketId = mediaTicketMatch ? mediaTicketMatch[1] : '';
+      if (mediaTicketId && Array.isArray(info?.subtitleTracks) && info.subtitleTracks.length) {
+        for (const s of info.subtitleTracks) {
+          subStreams.push({
+            Type: 'Subtitle',
+            Index: 200 + s.index,
+            Language: s.language || s.code,
+            DisplayTitle: s.label,
+            DeliveryUrl: `/api/stremio/subtitles/${mediaTicketId}.vtt?stream=${s.index}`
+          });
+        }
+      }
+      for (const s of result.subtitles || []) {
+        if (!subStreams.some(sub => sub.Language === (s.language || s.lang))) {
+          subStreams.push({
+            Type: 'Subtitle',
+            Index: 100 + (s.index || subStreams.length),
+            Language: s.language || s.lang,
+            DisplayTitle: s.label,
+            DeliveryUrl: s.url
+          });
+        }
+      }
       const mediaStreams = [
         { Type: 'Audio', Index: 1, Language: 'fra', DisplayTitle: 'Français (Principal)', IsDefault: true },
         { Type: 'Audio', Index: 2, Language: 'eng', DisplayTitle: 'Anglais', IsDefault: false },

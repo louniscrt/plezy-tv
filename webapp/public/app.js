@@ -188,7 +188,8 @@
     if (C.seerr && (C.seerrKey || C.seerrCookie) && !C.demo) jobs.push(A.discover('search?query=' + encodeURIComponent(query)));
     const results = await Promise.allSettled(jobs);
     if (version !== searchVersion || page !== 'SEARCH') return;
-    const items = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    const isWatchable = item => !item?.seerr || (item.mediaInfo?.status === 4 || item.mediaInfo?.status === 5) || (Number(item.ProductionYear || 0) <= new Date().getFullYear() && !['planned', 'in production', 'announced', 'upcoming', 'canceled', 'rumored'].includes(String(item.status || '').toLowerCase()));
+    const items = results.flatMap(r => r.status === 'fulfilled' ? r.value : []).filter(isWatchable);
     $('searchGrid').replaceChildren(...items.map((item, i) => tile(item, i)));
     text('searchHint', `${items.length} résultat${items.length > 1 ? 's' : ''}${results.some(r => r.status === 'rejected') ? ' · Une source est indisponible.' : items.length ? '' : ' · Essayez un autre titre.'}`);
   }

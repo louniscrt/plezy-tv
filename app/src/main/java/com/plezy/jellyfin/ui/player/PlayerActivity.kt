@@ -405,7 +405,7 @@ class PlayerActivity : AppCompatActivity() {
         val scale = prefs.getFloat("scale", 0.0533f)
         val fg = prefs.getInt("fg", android.graphics.Color.WHITE)
         val bg = prefs.getInt("bg", android.graphics.Color.argb(165, 0, 0, 0))
-        val bottom = prefs.getFloat("bottom", 0.08f)
+        val bottom = prefs.getFloat("bottom", 0.16f)
         playerView.subtitleView?.apply {
             setFractionalTextSize(scale)
             setBottomPaddingFraction(bottom)
@@ -454,9 +454,9 @@ class PlayerActivity : AppCompatActivity() {
                     7 -> ed.putInt("bg", android.graphics.Color.argb(165, 0, 0, 0))
                     8 -> ed.putInt("bg", android.graphics.Color.TRANSPARENT)
                     9 -> ed.putInt("bg", android.graphics.Color.argb(240, 0, 0, 0))
-                    10 -> ed.putFloat("bottom", 0.08f)
-                    11 -> ed.putFloat("bottom", 0.14f)
-                    12 -> ed.putFloat("bottom", 0.22f)
+                    10 -> ed.putFloat("bottom", 0.16f)
+                    11 -> ed.putFloat("bottom", 0.22f)
+                    12 -> ed.putFloat("bottom", 0.30f)
                 }
                 ed.apply()
                 applySubtitleStyle()
@@ -539,7 +539,9 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     jellyfinClient.stremio.remember(selectedItem)
                     val chosenAudio = selectedItem.audioTracks.firstOrNull { it.index == selectedAudioIndex }
-                    val wantEn = chosenAudio?.language?.startsWith("en", ignoreCase = true) == true || selectedAudioIndex == 1
+                    val wantEn = chosenAudio?.language?.startsWith("en", ignoreCase = true) == true ||
+                        chosenAudio?.displayTitle?.contains("Anglais", ignoreCase = true) == true ||
+                        chosenAudio?.displayTitle?.contains("English", ignoreCase = true) == true
                     val langCode = if (wantEn) "en" else "fr"
                     val chosenSub = selectedItem.subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex }
                     val subDisabled = selectedSubtitleIndex == null || selectedSubtitleIndex!! < 0 || chosenSub?.language == "off"

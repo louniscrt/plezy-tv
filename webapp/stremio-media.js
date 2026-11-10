@@ -61,6 +61,26 @@ function listAudioTracks(streams = []) {
   return { audio, fr, en, tracks };
 }
 
+function listSubtitleTracks(streams = []) {
+  const textCodecs = new Set(['subrip', 'srt', 'ass', 'ssa', 'webvtt', 'mov_text', 'text']);
+  const subs = (streams || []).filter(s => s.codec_type === 'subtitle' && (!s.codec_name || textCodecs.has(String(s.codec_name).toLowerCase())));
+  return subs.map(s => {
+    const lang = String(s.tags?.language || s.tags?.LANGUAGE || 'und').toLowerCase();
+    const title = String(s.tags?.title || s.tags?.TITLE || '').trim();
+    const isFr = /^(fr|fra|fre|french)/i.test(lang) || /french|français|vf|vff|vfq/i.test(title);
+    const isEn = /^(en|eng|english)/i.test(lang) || /english|anglais/i.test(title);
+    const label = title || (isFr ? 'Français' : isEn ? 'Anglais' : `Piste ${s.index} (${lang})`);
+    return {
+      index: s.index,
+      code: isFr ? 'fr' : isEn ? 'en' : lang,
+      language: isFr ? 'fra' : isEn ? 'eng' : lang,
+      label,
+      isFrench: isFr,
+      isEnglish: isEn
+    };
+  });
+}
+
 function chooseAudio(streams, options = {}) {
   const opts = typeof options === 'string' ? { lang: options } : (options || {});
   const lang = String(opts.lang || 'fr').toLowerCase();
@@ -173,6 +193,7 @@ async function browserMedia(req,res,ticketId,{start=0,probeOnly=false,identity,l
         if((startIdx+1)*6<dur && encoders<2)createSegment(info,source,identity,startIdx+1,1080,{lang,allowFallback}).catch(()=>{});
       }
       const {fr,en,tracks}=listAudioTracks(info.streams||[]);
+      const subTracks = listSubtitleTracks(info.streams || []);
       const selected=chooseAudio(info.streams||[],{lang,allowFallback});
       const selectedLang=isEnglishTrack(selected)&&!isFrenchTrack(selected)?'en':'fr';
       const {chapters,intro}=extractChapters(info);
@@ -183,6 +204,7 @@ async function browserMedia(req,res,ticketId,{start=0,probeOnly=false,identity,l
         hasFrenchAudio:Boolean(fr),
         hasEnglishAudio:Boolean(en||(info.streams||[]).filter(s=>s.codec_type==='audio').length>1),
         audioTracks:tracks,
+        subtitleTracks:subTracks,
         chapters,
         intro
       }));
@@ -197,7 +219,7 @@ async function browserMedia(req,res,ticketId,{start=0,probeOnly=false,identity,l
     child.stdout.pipe(res,{end:false});
   }catch{if(!closed){res.writeHead(422,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({error:'Aucune piste française lisible disponible pour ce lien.'}));}}
 }
-async function subtitleMedia(req, res, ticketId, { lang = 'fr', identity, upstreamUrl, hasCustomHeaders } = {}) {
+async function subtitleMedia(req, res, ticketId, { stream, lang = 'fr', identity, upstreamUrl, hasCustomHeaders } = {}) {
   const sendEmpty = () => {
     if (res.headersSent || res.destroyed) return;
     res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'private, max-age=600', 'Access-Control-Allow-Origin': '*' });
@@ -211,9 +233,16 @@ async function subtitleMedia(req, res, ticketId, { lang = 'fr', identity, upstre
     if (res.destroyed) return;
     const textCodecs = new Set(['subrip', 'srt', 'ass', 'ssa', 'webvtt', 'mov_text', 'text']);
     const subs = (info.streams || []).filter(s => s.codec_type === 'subtitle' && (!s.codec_name || textCodecs.has(String(s.codec_name).toLowerCase())));
-    const target = lang === 'en'
-      ? (subs.find(isEnglishTrack) || subs.find(s => !isFrenchTrack(s)))
-      : (subs.find(isFrenchTrack) || subs[0]);
+    let target = null;
+    if (stream !== undefined && stream !== null && stream !== '') {
+      const idx = Number(stream);
+      target = subs.find(s => s.index === idx) || (info.streams || []).find(s => s.index === idx);
+    }
+    if (!target) {
+      target = lang === 'en'
+        ? (subs.find(isEnglishTrack) || subs.find(s => !isFrenchTrack(s)))
+        : (subs.find(isFrenchTrack) || subs[0]);
+    }
     if (!target) return sendEmpty();
     const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rw_timeout', '10000000', '-i', source, '-map', '0:' + target.index, '-f', 'webvtt', 'pipe:1'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
@@ -231,7 +260,7 @@ async function subtitleMedia(req, res, ticketId, { lang = 'fr', identity, upstre
     sendEmpty();
   }
 }
-module.exports={browserMedia,chooseAudio,encoderArguments,warmProbe,listAudioTracks,subtitleMedia};
+module.exports={browserMedia,chooseAudio,encoderArguments,warmProbe,listAudioTracks,listSubtitleTracks,subtitleMedia};
 
 const fs=require('node:fs');
 const os=require('node:os');

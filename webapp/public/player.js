@@ -53,7 +53,7 @@
         }
       }
     }
-    return media?.stremio && media.Type === 'Episode' ? {start:4,end:180,heuristic:true} : null;
+    return media?.stremio && media.Type === 'Episode' ? {start:10,end:88,heuristic:true} : null;
   }
   function outroStart(media) {
     const segments = Array.isArray(media?.MediaSegments) ? media.MediaSegments : media?.MediaSegments?.Items || [];
@@ -70,18 +70,19 @@
     A.jf('/MediaSegments/' + media.Id, { params: { includeSegmentTypes: 'Intro' } })
       .then(data => { if (version === generation && item === media) { media.MediaSegments = data?.Items || []; updatePrompts(); } }).catch(() => {});
   }
-  let dismissedNext = false, dismissedIntro = false;
+  let dismissedNext = false, dismissedIntro = false, introShownAt = 0;
   const prompts = U.el('div', 'tv-playback-prompts');
   prompts.setAttribute('aria-label', 'Suggestions de lecture');
   const skipIntro = action('Passer l’intro', () => {
     const range = introRange(item);
     if (!range) return;
     dismissedIntro = true;
+    skipIntro.hidden = true;
     const cur = position();
     const nextChapters = (item?.Chapters || plan?.chapters || [])
       .map(c => Number(c.StartPositionTicks) / 10000000)
       .filter(t => Number.isFinite(t) && t > cur + 15 && t <= cur + 110);
-    const target = !range.heuristic ? range.end : nextChapters.length ? nextChapters[0] : cur < 15 ? 85 : cur + 85;
+    const target = !range.heuristic ? range.end : nextChapters.length ? nextChapters[0] : (cur < 85 ? 85 : Math.min(cur + 30, Math.max(cur, duration() - 10)));
     seek(target);
     updatePrompts();
   });
@@ -93,21 +94,64 @@
   promptStyle.textContent = '.tv-playback-prompts{position:absolute;right:4%;bottom:14%;z-index:25;display:flex;flex-direction:row-reverse;gap:12px;animation:tvPromptIn .28s ease-out;pointer-events:auto}@keyframes tvPromptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}.tv-playback-prompts[hidden],.tv-playback-prompts button[hidden]{display:none!important}.tv-playback-prompts button{font:700 clamp(14px,1.5vw,20px) inherit;font-family:inherit;padding:.8em 1.7em;border-radius:6px;border:2px solid rgba(255,255,255,.85);background:rgba(20,20,20,.78);color:#fff;cursor:pointer;backdrop-filter:blur(6px);pointer-events:auto}.tv-playback-prompts button:first-child,.tv-playback-prompts button:nth-child(2){background:#fff;color:#000}.tv-playback-prompts button:hover{transform:scale(1.05)}@media(max-width:640px){.tv-playback-prompts{right:3%;bottom:96px}}';
   document.head.append(promptStyle);
   const subPrefs = (() => {
-    try { return Object.assign({ size: '100%', color: '#ffffff', bg: 'rgba(0,0,0,0.65)', pos: '0' }, JSON.parse(window.localStorage?.getItem('plezy.web.subStyle') || '{}')); }
-    catch { return { size: '100%', color: '#ffffff', bg: 'rgba(0,0,0,0.65)', pos: '0' }; }
+    try { return Object.assign({ size: '100%', color: '#ffffff', bg: 'rgba(0,0,0,0.72)', pos: '0' }, JSON.parse(window.localStorage?.getItem('plezy.web.subStyle') || '{}')); }
+    catch { return { size: '100%', color: '#ffffff', bg: 'rgba(0,0,0,0.72)', pos: '0' }; }
   })();
-  const subStyleEl = U.el('style');
-  document.head.append(subStyleEl);
+  const subContainer = U.el('div', 'plezy-subtitles');
+  subContainer.id = 'plezySubtitles';
+  subContainer.hidden = true;
+  const subText = U.el('div', 'plezy-sub-text');
+  subText.id = 'plezySubText';
+  subContainer.append(subText);
+  $('screen-player').append(subContainer);
   function applySubStyle() {
     try { window.localStorage?.setItem('plezy.web.subStyle', JSON.stringify(subPrefs)); } catch {}
-    subStyleEl.textContent = `#video::cue{font-size:${subPrefs.size}!important;color:${subPrefs.color}!important;background-color:${subPrefs.bg}!important;text-shadow:0 2px 6px rgba(0,0,0,.95)!important}#video::-webkit-media-text-track-display{transform:translateY(${subPrefs.pos})!important}`;
+    const sizeMap = { '80%': '20px', '100%': '26px', '130%': '34px', '160%': '42px' };
+    const posMap = { '0': '16%', '-6vh': '22%', '-12vh': '30%' };
+    const root = $('screen-player');
+    if (root?.style) {
+      if (typeof root.style.setProperty === 'function') {
+        root.style.setProperty('--sub-size', sizeMap[subPrefs.size] || subPrefs.size || '26px');
+        root.style.setProperty('--sub-color', subPrefs.color || '#ffffff');
+        root.style.setProperty('--sub-bg', subPrefs.bg || 'rgba(0,0,0,0.72)');
+        root.style.setProperty('--sub-bottom', posMap[subPrefs.pos] || '16%');
+      } else {
+        root.style['--sub-size'] = sizeMap[subPrefs.size] || subPrefs.size || '26px';
+        root.style['--sub-color'] = subPrefs.color || '#ffffff';
+        root.style['--sub-bg'] = subPrefs.bg || 'rgba(0,0,0,0.72)';
+        root.style['--sub-bottom'] = posMap[subPrefs.pos] || '16%';
+      }
+    }
   }
   applySubStyle();
+  function updateSubtitleOverlay() {
+    if (!item || subtitle < 0) {
+      subText.textContent = '';
+      subContainer.hidden = true;
+      return;
+    }
+    const tracks = video.textTracks ? Array.from(video.textTracks) : [];
+    const active = tracks.find(t => t.mode === 'hidden' || t.mode === 'showing');
+    const cues = active?.activeCues;
+    if (!cues || cues.length === 0) {
+      subText.textContent = '';
+      subContainer.hidden = true;
+      return;
+    }
+    const txt = Array.from(cues).map(c => c.text || '').filter(Boolean).join('\n');
+    if (!txt.trim()) {
+      subText.textContent = '';
+      subContainer.hidden = true;
+      return;
+    }
+    subText.textContent = txt;
+    subContainer.hidden = false;
+  }
   function customizeSubtitles() {
     const sizes = [['Petit', '80%'], ['Normal', '100%'], ['Grand', '130%'], ['Très grand', '160%']];
     const colors = [['Blanc', '#ffffff'], ['Jaune', '#ffd700'], ['Cyan', '#00ffff'], ['Vert', '#7cfc00']];
-    const bgs = [['Semi-transparent', 'rgba(0,0,0,0.65)'], ['Transparent', 'transparent'], ['Noir opaque', 'rgba(0,0,0,0.95)']];
-    const positions = [['Bas', '0'], ['Relevé', '-6vh'], ['Haut', '-12vh']];
+    const bgs = [['Semi-transparent', 'rgba(0,0,0,0.72)'], ['Transparent', 'transparent'], ['Noir opaque', 'rgba(0,0,0,0.95)']];
+    const positions = [['Bas (Recommandé)', '0'], ['Relevé', '-6vh'], ['Haut', '-12vh']];
     const makeGroup = (prefix, list, key) => list.map(([label, val]) => action((subPrefs[key] === val ? '✓ ' : '') + prefix + ' : ' + label, () => {
       subPrefs[key] = val; applySubStyle(); customizeSubtitles();
     }, 'opt' + (subPrefs[key] === val ? ' sel' : '')));
@@ -130,7 +174,19 @@
   function updatePrompts(ended = false) {
     const range = introRange(item), current = position(), length = duration();
     const active = !!item && U.screen === 'player' && !switching && !['idle','loading','error'].includes(state);
-    skipIntro.hidden = !(active && !dismissedIntro && range && current >= range.start && current < range.end);
+    const inIntro = active && !dismissedIntro && range && current >= range.start && current < range.end;
+    if (inIntro) {
+      if (!introShownAt) introShownAt = current;
+      if (current - introShownAt > 12) {
+        dismissedIntro = true;
+        skipIntro.hidden = true;
+      } else {
+        skipIntro.hidden = false;
+      }
+    } else {
+      if (!inIntro && range && current >= range.end) dismissedIntro = true;
+      skipIntro.hidden = true;
+    }
     const outro = outroStart(item);
     nextEpisode.hidden = !(active && next && !dismissedNext && (ended || length > 0 && current >= (outro && outro > length * .5 ? outro : Math.max(0, length - 30))));
     if (!nextEpisode.hidden && next) nextEpisode.textContent = 'Épisode suivant' + (next.IndexNumber ? ' · É' + next.IndexNumber : '');
@@ -176,6 +232,7 @@
   function destroyMedia() {
     if (hls) { hls.destroy(); hls = null; }
     for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
+    subText.textContent = ''; subContainer.hidden = true;
     video.onloadedmetadata = null; video.pause(); video.removeAttribute('src'); video.load();
   }
   function resetTimelineUi(startSec = 0) {
@@ -191,6 +248,7 @@
   }
   function applyExternalSubtitles() {
     for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
+    subText.textContent = ''; subContainer.hidden = true;
     if (!item?.stremio || subtitle < 0) return;
     const chosen = streams('Subtitle').find(s => s.Index === subtitle && s.DeliveryUrl);
     if (!chosen || !document.createElement) return;
@@ -201,8 +259,21 @@
     trackEl.src = chosen.DeliveryUrl;
     trackEl.default = true;
     trackEl.setAttribute('data-plezy-sub', '1');
+    trackEl.onload = () => {
+      if (trackEl.track) {
+        trackEl.track.mode = 'hidden';
+        trackEl.track.oncuechange = updateSubtitleOverlay;
+      }
+      updateSubtitleOverlay();
+    };
     video.appendChild(trackEl);
-    if (video.textTracks?.[0]) video.textTracks[0].mode = 'showing';
+    if (video.textTracks) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const t = video.textTracks[i];
+        t.mode = 'hidden';
+        t.oncuechange = updateSubtitleOverlay;
+      }
+    }
   }
   async function recover(message) {
     if (!item || switching || state === 'error') return;
@@ -323,7 +394,7 @@
     if (item) stop(false, false);
     const version = ++generation;
     returnScreen = originalScreen === 'main' ? 'main' : 'detail';
-    dismissedNext = false; dismissedIntro = false; prompts.hidden = true;
+    dismissedNext = false; dismissedIntro = false; introShownAt = 0; prompts.hidden = true; subText.textContent = ''; subContainer.hidden = true;
     item = selected; source = selected.MediaSources?.[0]; audio = undefined; subtitle = -1; bitrate = 0; fallback = false;
     episodeList = episodes; const index = episodes.findIndex(e => e.Id === selected.Id); next = index >= 0 ? episodes[index + 1] : undefined;
     $('pNext').hidden = !next; $('pEpisodes').hidden = !episodes.length;
@@ -347,7 +418,7 @@
     } catch (error) { if (version === generation) fail(error.message); }
   }
   function stop(record = true, navigate = true) {
-    prompts.hidden = true; dismissedNext = false; dismissedIntro = false;
+    prompts.hidden = true; dismissedNext = false; dismissedIntro = false; introShownAt = 0; subText.textContent = ''; subContainer.hidden = true;
     report('Stopped').then(()=>window.dispatchEvent?.(new Event('plezy:playback-stopped'))); stopEncoding(plan); clearInterval(reportTimer); clearTimeout(hideTimer); clearTimeout(startupTimer); clearTimeout(bufferTimer);
     ++generation; ++loadGeneration; negotiation?.abort(); switching = true; destroyMedia(); switching = false; item = null; plan = null; state = 'idle';
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -517,6 +588,7 @@
     const chapter=[...(item?.Chapters||[])].reverse().find(ch=>ch.StartPositionTicks/10000000<=current); text('pChapter',chapter?.Name||'');
     if(video.buffered.length && length) $('pBuf').style.width=Math.min(100,(video.buffered.end(video.buffered.length-1)+offset)/length*100)+'%';
     updatePrompts();
+    updateSubtitleOverlay();
   }
   video.ontimeupdate = updateTimeline;
   video.onplay = () => { if (!item || switching) return; clearTimeout(bufferTimer); setState('playing'); };

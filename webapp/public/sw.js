@@ -1,4 +1,4 @@
-const CACHE = 'plezy-shell-stremio-20261110-v8';
+const CACHE = 'plezy-shell-stremio-20261110-v9';
 const SHELL = ['/', '/index.html', '/style.css', '/player.css', '/detail.css', '/api.js', '/resume.js', '/seerr-session.js', '/refresh.js', '/seerr-pairing.js', '/vendor/qrcode.js', '/detail.js', '/app.js', '/playback.js', '/player.js', '/demo.js', '/offline.js', '/icon.svg', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest', '/vendor/hls.min.js', ...Array.from({length:8},(_,i)=>'/art/demo-'+i+'.jpg'), ...['regular','medium','semibold','bold','extrabold'].map(w => '/fonts/inter_' + w + '.ttf')];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => Promise.all(SHELL.map(async path => {
   const response = await fetch(path, {cache:'reload'});

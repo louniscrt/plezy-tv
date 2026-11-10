@@ -117,6 +117,23 @@ async function parallel(values, fn, concurrency = 8) {
   }));
   return results.filter(Boolean);
 }
+function isWatchableMeta(m) {
+  if (!m) return false;
+  if (m.mediaInfo?.status === 4 || m.mediaInfo?.status === 5) return true;
+  const currentYear = new Date().getFullYear();
+  const relStr = m.releaseDate || m.firstAirDate || m.releaseInfo;
+  const year = Number(m.ProductionYear || (relStr ? String(relStr).slice(0, 4) : 0));
+  if (year && year > currentYear) return false;
+  if (m.releaseDate) {
+    const rel = new Date(m.releaseDate);
+    if (!isNaN(rel.getTime()) && rel.getTime() > Date.now()) return false;
+  }
+  const status = String(m.status || '').toLowerCase();
+  if (['planned', 'in production', 'announced', 'upcoming', 'canceled', 'rumored'].includes(status)) return false;
+  if (!m.poster && !m.posterPath && !m.backdropPath && !m.background && !m.overview && !m.description) return false;
+  return true;
+}
+
 function createStremio({ config, fetchJSON } = {}) {
   if (!config) {
     const file = process.env.STREMIO_CONFIG_FILE;
@@ -191,11 +208,17 @@ function createStremio({ config, fetchJSON } = {}) {
     });
     let discovery = [];
     if (search && config.metadata) {
-      try { discovery = (await metadataJSON('search?query=' + encodeURIComponent(search))).results.filter(m => ['movie', 'tv'].includes(m.mediaType)).map(m => ({
-        ...m, Id: 'seerr_' + m.mediaType + '_' + m.id, Name: m.title || m.name, Type: m.mediaType === 'tv' ? 'Series' : 'Movie',
-        seerr: true, Overview: m.overview || '', ProductionYear: Number((m.releaseDate || m.firstAirDate || '').slice(0, 4)) || undefined,
-        CommunityRating: m.voteAverage, Genres: [], UserData: {}
-      })); } catch { /* Catalogues remain usable. */ }
+      try {
+        const rawResults = (await metadataJSON('search?query=' + encodeURIComponent(search)))?.results || [];
+        discovery = rawResults
+          .filter(m => ['movie', 'tv'].includes(m.mediaType))
+          .filter(isWatchableMeta)
+          .map(m => ({
+            ...m, Id: 'seerr_' + m.mediaType + '_' + m.id, Name: m.title || m.name, Type: m.mediaType === 'tv' ? 'Series' : 'Movie',
+            seerr: true, Overview: m.overview || '', ProductionYear: Number((m.releaseDate || m.firstAirDate || '').slice(0, 4)) || undefined,
+            CommunityRating: m.voteAverage, Genres: [], UserData: {}
+          }));
+      } catch { /* Catalogues remain usable. */ }
     }
     return [...new Map([...lists.flat(), ...discovery].map(m => [m.Id, m])).values()].slice(0, Math.min(500, limit));
   }
@@ -309,7 +332,9 @@ function createStremio({ config, fetchJSON } = {}) {
   }
   async function search(query) {
     if (!query?.trim()) return { results: [] };
-    return await metadataJSON('search?query=' + encodeURIComponent(query.trim())) || { results: [] };
+    const data = await metadataJSON('search?query=' + encodeURIComponent(query.trim())) || { results: [] };
+    const filtered = (data.results || []).filter(isWatchableMeta);
+    return { ...data, results: filtered };
   }
   async function resolveMedia({ id, tmdbId, type = 'movie' }) {
     if (!['movie', 'series'].includes(type)) throw new Error('Type invalide');
