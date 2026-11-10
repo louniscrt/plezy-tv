@@ -83,15 +83,13 @@
         }
       }
       for (const s of result.subtitles || []) {
-        if (!subStreams.some(sub => sub.Language === (s.language || s.lang))) {
-          subStreams.push({
-            Type: 'Subtitle',
-            Index: 100 + (s.index || subStreams.length),
-            Language: s.language || s.lang,
-            DisplayTitle: s.label,
-            DeliveryUrl: s.url
-          });
-        }
+        subStreams.push({
+          Type: 'Subtitle',
+          Index: 100 + (s.index || subStreams.length),
+          Language: s.language || s.lang,
+          DisplayTitle: s.label,
+          DeliveryUrl: s.url
+        });
       }
       const mediaStreams = [
         { Type: 'Audio', Index: 1, Language: 'fra', DisplayTitle: 'Français (Principal)', IsDefault: true },

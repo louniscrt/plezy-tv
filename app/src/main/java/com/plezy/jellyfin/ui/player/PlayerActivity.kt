@@ -36,6 +36,11 @@ import com.plezy.jellyfin.data.api.StremioEngine
 import com.google.android.exoplayer2.source.DefaultMediaSourceFactory
 import com.google.android.exoplayer2.upstream.DefaultDataSource
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
+import com.google.android.exoplayer2.Tracks
+import com.google.android.exoplayer2.source.TrackGroup
+import com.google.android.exoplayer2.trackselection.TrackSelectionOverride
+import com.google.android.exoplayer2.util.MimeTypes
+import android.net.Uri
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -285,34 +290,10 @@ class PlayerActivity : AppCompatActivity() {
         applySubtitleStyle()
         val btnSubtitles = findViewById<View>(R.id.btnSubtitles)
         btnSubtitles.setOnClickListener {
+            val exo = player ?: return@setOnClickListener
             dialogOpen = true
             uiHandler.removeCallbacks(hideOverlayRunnable)
-            val audioItems = mediaItem.audioTracks.map { "🔊 Audio: ${it.displayTitle}" }
-            val subItems = mediaItem.subtitleTracks.map { "💬 Sous-titres: ${it.displayTitle}" }
-            val combined = (audioItems + subItems + listOf("🎨 Personnaliser les sous-titres…")).toTypedArray()
-
-            AlertDialog.Builder(this)
-                .setTitle("Audio & Sous-titres")
-                .setItems(combined) { _, which ->
-                    when {
-                        which < mediaItem.audioTracks.size -> {
-                            val chosenAudio = mediaItem.audioTracks[which]
-                            selectedAudioIndex = chosenAudio.index
-                            Toast.makeText(this, "Audio: ${chosenAudio.displayTitle}", Toast.LENGTH_SHORT).show()
-                            reloadStreamPreservingPosition()
-                        }
-                        which < mediaItem.audioTracks.size + mediaItem.subtitleTracks.size -> {
-                            val chosenSub = mediaItem.subtitleTracks[which - mediaItem.audioTracks.size]
-                            selectedSubtitleIndex = chosenSub.index
-                            Toast.makeText(this, "Sous-titres: ${chosenSub.displayTitle}", Toast.LENGTH_SHORT).show()
-                            reloadStreamPreservingPosition()
-                        }
-                        else -> showSubtitleStyleDialog()
-                    }
-                    showOverlayAndScheduleHide()
-                }
-                .setOnDismissListener { dialogOpen = false; showOverlayAndScheduleHide() }
-                .show()
+            showAudioAndSubtitlesDialog(exo)
         }
         addFocusBounce(btnSubtitles, 1.08f)
 
@@ -465,6 +446,159 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
+    private data class TrackOption(
+        val type: Int, // 0 = audio, 1 = sub, 2 = custom
+        val title: String,
+        val isSelected: Boolean,
+        val group: TrackGroup? = null,
+        val trackIndex: Int = -1,
+        val isOff: Boolean = false,
+        val fallbackIndex: Int? = null
+    )
+
+    private fun showAudioAndSubtitlesDialog(exo: ExoPlayer) {
+        val tracks = exo.currentTracks
+        val options = mutableListOf<TrackOption>()
+
+        // 1. Audio tracks
+        val detectedAudios = mutableListOf<TrackOption>()
+        for (group in tracks.groups) {
+            if (group.type == C.TRACK_TYPE_AUDIO) {
+                val tg = group.mediaTrackGroup
+                for (i in 0 until group.length) {
+                    if (group.isTrackSupported(i)) {
+                        val format = group.getTrackFormat(i)
+                        val lang = format.language ?: "und"
+                        val langName = when {
+                            lang.startsWith("fr", ignoreCase = true) -> "Français"
+                            lang.startsWith("en", ignoreCase = true) -> "Anglais"
+                            else -> lang.uppercase()
+                        }
+                        val channels = if (format.channelCount >= 6) "5.1" else if (format.channelCount == 2) "2.0" else if (format.channelCount > 0) "${format.channelCount}ch" else ""
+                        val customLabel = format.label?.takeIf { it.isNotBlank() }
+                        val display = when {
+                            customLabel != null && channels.isNotEmpty() && !customLabel.contains(channels) -> "$customLabel ($channels)"
+                            customLabel != null -> customLabel
+                            channels.isNotEmpty() -> "$langName ($channels)"
+                            else -> langName
+                        }
+                        detectedAudios.add(TrackOption(0, display, group.isTrackSelected(i), tg, i))
+                    }
+                }
+            }
+        }
+        if (detectedAudios.isNotEmpty()) {
+            options.addAll(detectedAudios)
+        } else {
+            mediaItem.audioTracks.forEach { at ->
+                options.add(TrackOption(0, at.displayTitle, at.index == selectedAudioIndex, fallbackIndex = at.index))
+            }
+        }
+
+        // 2. Subtitle tracks
+        val detectedSubs = mutableListOf<TrackOption>()
+        val hasSelectedSub = tracks.isTypeSelected(C.TRACK_TYPE_TEXT)
+        val isSubOff = !hasSelectedSub || selectedSubtitleIndex == -1
+        detectedSubs.add(TrackOption(1, "Désactivés", isSubOff, null, -1, true))
+
+        for (group in tracks.groups) {
+            if (group.type == C.TRACK_TYPE_TEXT) {
+                val tg = group.mediaTrackGroup
+                for (i in 0 until group.length) {
+                    if (group.isTrackSupported(i)) {
+                        val format = group.getTrackFormat(i)
+                        val lang = format.language ?: "und"
+                        val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0 || format.label?.contains("forc", ignoreCase = true) == true
+                        val isSdh = (format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) != 0 || format.label?.contains("sdh", ignoreCase = true) == true
+                        val langName = when {
+                            lang.startsWith("fr", ignoreCase = true) -> "Français"
+                            lang.startsWith("en", ignoreCase = true) -> "Anglais"
+                            else -> lang.uppercase()
+                        }
+                        val typeSuffix = when {
+                            isForced -> " (forcé)"
+                            isSdh -> " (malentendants)"
+                            format.label?.contains("OpenSubtitles", ignoreCase = true) == true -> ""
+                            format.label?.isNotBlank() == true -> " (${format.label})"
+                            else -> " (complet)"
+                        }
+                        val title = if (format.label?.isNotBlank() == true && format.label!!.contains(langName, ignoreCase = true)) {
+                            format.label!!
+                        } else if (format.label?.isNotBlank() == true) {
+                            "$langName - ${format.label}"
+                        } else {
+                            "$langName$typeSuffix"
+                        }
+                        detectedSubs.add(TrackOption(1, title, !isSubOff && group.isTrackSelected(i), tg, i))
+                    }
+                }
+            }
+        }
+        if (detectedSubs.size > 1) {
+            options.addAll(detectedSubs)
+        } else {
+            mediaItem.subtitleTracks.forEach { st ->
+                options.add(TrackOption(1, st.displayTitle, st.index == selectedSubtitleIndex, fallbackIndex = st.index, isOff = st.index == -1 || st.language == "off"))
+            }
+        }
+
+        // 3. Customization entry
+        options.add(TrackOption(2, "🎨 Personnaliser les sous-titres…", false))
+
+        val menuItems = options.map { opt ->
+            when (opt.type) {
+                0 -> "🔊 Audio: ${if (opt.isSelected) "✓ " else ""}${opt.title}"
+                1 -> "💬 Sous-titres: ${if (opt.isSelected) "✓ " else ""}${opt.title}"
+                else -> opt.title
+            }
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Audio & Sous-titres")
+            .setItems(menuItems) { _, which ->
+                val choice = options[which]
+                when (choice.type) {
+                    0 -> {
+                        if (choice.group != null && choice.trackIndex >= 0) {
+                            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                                .setOverrideForType(TrackSelectionOverride(choice.group, choice.trackIndex))
+                                .build()
+                            Toast.makeText(this, "Audio : ${choice.title}", Toast.LENGTH_SHORT).show()
+                        } else if (choice.fallbackIndex != null) {
+                            selectedAudioIndex = choice.fallbackIndex
+                            Toast.makeText(this, "Audio : ${choice.title}", Toast.LENGTH_SHORT).show()
+                            reloadStreamPreservingPosition()
+                        }
+                    }
+                    1 -> {
+                        if (choice.isOff) {
+                            selectedSubtitleIndex = -1
+                            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                .build()
+                            Toast.makeText(this, "Sous-titres : Désactivés", Toast.LENGTH_SHORT).show()
+                        } else if (choice.group != null && choice.trackIndex >= 0) {
+                            selectedSubtitleIndex = choice.trackIndex
+                            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                .setOverrideForType(TrackSelectionOverride(choice.group, choice.trackIndex))
+                                .build()
+                            Toast.makeText(this, "Sous-titres : ${choice.title}", Toast.LENGTH_SHORT).show()
+                        } else if (choice.fallbackIndex != null) {
+                            selectedSubtitleIndex = choice.fallbackIndex
+                            Toast.makeText(this, "Sous-titres : ${choice.title}", Toast.LENGTH_SHORT).show()
+                            reloadStreamPreservingPosition()
+                        }
+                    }
+                    2 -> showSubtitleStyleDialog()
+                }
+                showOverlayAndScheduleHide()
+            }
+            .setOnDismissListener { dialogOpen = false; showOverlayAndScheduleHide() }
+            .show()
+    }
+
     private fun jumpToChapter(next: Boolean) {
         val exo = player ?: return
         val chapters = mediaItem.chapters
@@ -584,7 +718,20 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     val http = DefaultHttpDataSource.Factory().setDefaultRequestProperties(stream.headers)
                     val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlayerActivity, http))
-                    exo.setMediaSource(factory.createMediaSource(ExoMediaItem.fromUri(resolvedUrl)), position)
+                    val subConfigs = stream.subtitles.mapNotNull { sub ->
+                        val subUri = Uri.parse(sub.url)
+                        ExoMediaItem.SubtitleConfiguration.Builder(subUri)
+                            .setMimeType(MimeTypes.TEXT_VTT)
+                            .setLanguage(sub.lang)
+                            .setLabel(sub.label)
+                            .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
+                            .build()
+                    }
+                    val exoMediaItem = ExoMediaItem.Builder()
+                        .setUri(resolvedUrl)
+                        .setSubtitleConfigurations(subConfigs)
+                        .build()
+                    exo.setMediaSource(factory.createMediaSource(exoMediaItem), position)
                     exo.prepare(); exo.playWhenReady = playing
                     showOverlayAndScheduleHide()
                 } catch (error: Exception) {
@@ -603,7 +750,15 @@ class PlayerActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.btnQuality).isEnabled = local == null
         findViewById<View>(R.id.btnSubtitles).isEnabled = local == null
-        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+        val jSubDisabled = selectedSubtitleIndex == null || selectedSubtitleIndex == -1
+        val jParams = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, jSubDisabled)
+        if (!jSubDisabled) {
+            val chosen = mediaItem.subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex }
+            jParams.setPreferredTextLanguage(chosen?.language?.takeIf { it != "off" } ?: "fr")
+        } else {
+            jParams.clearOverridesOfType(C.TRACK_TYPE_TEXT)
+        }
+        exo.trackSelectionParameters = jParams.build()
         exo.setMediaItem(ExoMediaItem.fromUri(url), position)
         exo.prepare()
         exo.playWhenReady = playing

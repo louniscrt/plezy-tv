@@ -151,6 +151,7 @@
     `;
   }
   applySubStyle();
+  let currentSubTrack = null;
   function updateSubtitleOverlay() {
     if (!item || subtitle < 0) {
       subText.textContent = '';
@@ -158,7 +159,7 @@
       return;
     }
     const tracks = video.textTracks ? Array.from(video.textTracks) : [];
-    const active = tracks.find(t => t.mode === 'hidden' || t.mode === 'showing');
+    const active = currentSubTrack || tracks.find(t => (t.mode === 'hidden' || t.mode === 'showing') && t.activeCues?.length) || tracks.find(t => t.mode === 'hidden' || t.mode === 'showing');
     const cues = active?.activeCues;
     if (!cues || cues.length === 0) {
       subText.textContent = '';
@@ -258,6 +259,7 @@
   function destroyMedia() {
     if (hls) { hls.destroy(); hls = null; }
     for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
+    currentSubTrack = null;
     subText.textContent = ''; subContainer.hidden = true;
     video.onloadedmetadata = null; video.pause(); video.removeAttribute('src'); video.load();
   }
@@ -274,6 +276,7 @@
   }
   function applyExternalSubtitles() {
     for (const tr of video.querySelectorAll?.('track[data-plezy-sub]') || []) tr.remove();
+    currentSubTrack = null;
     subText.textContent = ''; subContainer.hidden = true;
     if (video.textTracks) {
       for (let i = 0; i < video.textTracks.length; i++) {
@@ -290,20 +293,20 @@
     trackEl.src = chosen.DeliveryUrl;
     trackEl.default = true;
     trackEl.setAttribute('data-plezy-sub', '1');
-    trackEl.onload = () => {
+    const onReady = () => {
       if (trackEl.track) {
         trackEl.track.mode = 'hidden';
         trackEl.track.oncuechange = updateSubtitleOverlay;
+        currentSubTrack = trackEl.track;
       }
       updateSubtitleOverlay();
     };
+    trackEl.onload = onReady;
     video.appendChild(trackEl);
-    if (video.textTracks) {
-      for (let i = 0; i < video.textTracks.length; i++) {
-        const t = video.textTracks[i];
-        t.mode = 'hidden';
-        t.oncuechange = updateSubtitleOverlay;
-      }
+    if (trackEl.track) {
+      trackEl.track.mode = 'hidden';
+      trackEl.track.oncuechange = updateSubtitleOverlay;
+      currentSubTrack = trackEl.track;
     }
   }
   async function recover(message) {

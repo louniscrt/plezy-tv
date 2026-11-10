@@ -20,9 +20,10 @@ import java.util.concurrent.TimeUnit
 /** Stremio HTTP protocol; account-specific manifests are supplied at runtime, never compiled in. */
 class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(5, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).callTimeout(12, TimeUnit.SECONDS).build()) {
-    data class Stream(val url: String, val headers: Map<String, String> = emptyMap(), val priority: Int = 0)
+    data class Subtitle(val url: String, val lang: String, val label: String)
+    data class Stream(val url: String, val headers: Map<String, String> = emptyMap(), val priority: Int = 0, val subtitles: List<Subtitle> = emptyList())
     private val configured = config.getAsJsonArray("addons")?.map { base(if (it.isJsonPrimitive) it.asString else it.asJsonObject.get("manifestUrl").asString) }.orEmpty().distinct()
-    private val backend = config.get("backendUrl")?.asString?.trimEnd('/')?.takeIf { it.toHttpUrlOrNull() != null }
+    val backend = config.get("backendUrl")?.asString?.trimEnd('/')?.takeIf { it.toHttpUrlOrNull() != null }
     val enabled = configured.isNotEmpty() || backend != null
     private val frenchOnly = config.get("frenchOnly")?.asBoolean ?: true
     private val bases = (configured + if (enabled && config.get("metadataManifest")?.toString() != "false")
@@ -259,13 +260,22 @@ class StremioEngine(config: JsonObject, private val http: OkHttpClient = OkHttpC
         val (type, id) = parse(key)
         if (backend != null) {
             val data = json("$backend/api/stremio/streams?id=${encode(key)}", 30000)
+            val subs = data.getAsJsonArray("subtitles")?.mapNotNull { el ->
+                if (!el.isJsonObject) return@mapNotNull null
+                val o = el.asJsonObject
+                val relUrl = o.text("url") ?: return@mapNotNull null
+                val fullUrl = backend.toHttpUrlOrNull()?.resolve(relUrl)?.toString() ?: relUrl
+                val l = o.text("lang") ?: "fr"
+                val lab = o.text("label") ?: "Français"
+                Subtitle(fullUrl, l, lab)
+            }.orEmpty()
             fun mapEntry(obj: JsonObject, forceFallback: Boolean = false): Stream? {
                 val path = obj.text("url") ?: return null
                 val isFallback = forceFallback || obj.get("fallback")?.asBoolean == true
                 val suffix = if (isFallback) "/master.m3u8?fallback=1" else "/master.m3u8"
                 val hlsPath = path.replace("/media/", "/hls/") + suffix
                 val url = backend.toHttpUrlOrNull()?.resolve(hlsPath)?.toString() ?: return null
-                return Stream(url)
+                return Stream(url, emptyMap(), 0, subs)
             }
             val primary = data.getAsJsonArray("streams")?.mapNotNull { mapEntry(it.asJsonObject, false) }.orEmpty()
             val fallbacks = data.getAsJsonArray("fallbackStreams")?.mapNotNull { mapEntry(it.asJsonObject, true) }.orEmpty()

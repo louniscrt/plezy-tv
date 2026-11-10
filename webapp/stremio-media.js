@@ -66,17 +66,28 @@ function listSubtitleTracks(streams = []) {
   const subs = (streams || []).filter(s => s.codec_type === 'subtitle' && (!s.codec_name || textCodecs.has(String(s.codec_name).toLowerCase())));
   return subs.map(s => {
     const lang = String(s.tags?.language || s.tags?.LANGUAGE || 'und').toLowerCase();
-    const title = String(s.tags?.title || s.tags?.TITLE || '').trim();
-    const isFr = /^(fr|fra|fre|french)/i.test(lang) || /french|français|vf|vff|vfq/i.test(title);
-    const isEn = /^(en|eng|english)/i.test(lang) || /english|anglais/i.test(title);
-    const label = title || (isFr ? 'Français' : isEn ? 'Anglais' : `Piste ${s.index} (${lang})`);
+    const rawTitle = String(s.tags?.title || s.tags?.TITLE || '').trim();
+    const isForced = s.disposition?.forced === 1 || /forc[eé]|forced/i.test(rawTitle);
+    const isSdh = s.disposition?.hearing_impaired === 1 || /sdh|malentendant/i.test(rawTitle);
+    const isFr = /^(fr|fra|fre|french)/i.test(lang) || /french|français|vf|vff|vfq/i.test(rawTitle);
+    const isEn = /^(en|eng|english)/i.test(lang) || /english|anglais/i.test(rawTitle);
+    const baseLang = isFr ? 'Français' : isEn ? 'Anglais' : (lang !== 'und' ? lang.toUpperCase() : `Piste ${s.index}`);
+    const kind = isForced ? 'forcé' : isSdh ? 'malentendants' : 'complet';
+    let label;
+    if (rawTitle && !/^(subtitles?|sous-titres?|french|anglais|english|fra|fre|eng)$/i.test(rawTitle)) {
+      label = rawTitle.toLowerCase().includes(baseLang.toLowerCase()) ? rawTitle : `${baseLang} (${rawTitle})`;
+    } else {
+      label = `${baseLang} (${kind})`;
+    }
     return {
       index: s.index,
       code: isFr ? 'fr' : isEn ? 'en' : lang,
       language: isFr ? 'fra' : isEn ? 'eng' : lang,
       label,
       isFrench: isFr,
-      isEnglish: isEn
+      isEnglish: isEn,
+      isForced,
+      isSdh
     };
   });
 }

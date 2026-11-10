@@ -391,23 +391,31 @@ function createStremio({ config, fetchJSON } = {}) {
       .filter(s => /^(fr|fra|fre|french)/i.test(s.lang))
       .sort((a, b) => scoreSub(b) - scoreSub(a))
       .slice(0, 3)
-      .map((s, i) => ({
-        url: s.url,
-        lang: 'fr',
-        language: 'fra',
-        label: i === 0 ? 'Français' : `Français (${i + 1})`
-      }));
+      .map((s, i) => {
+        const isForced = /forc[eé]|forced/i.test(s.movieReleaseName || s.subtitleFileName || '');
+        const kind = isForced ? ' (forcé - OpenSubtitles)' : (i === 0 ? ' (OpenSubtitles)' : ` (OpenSubtitles ${i + 1})`);
+        return {
+          url: s.url,
+          lang: 'fr',
+          language: 'fra',
+          label: `Français${kind}`
+        };
+      });
 
     const enSubs = cleanSubs
       .filter(s => /^(en|eng|english)/i.test(s.lang))
       .sort((a, b) => scoreSub(b) - scoreSub(a))
       .slice(0, 3)
-      .map((s, i) => ({
-        url: s.url,
-        lang: 'en',
-        language: 'eng',
-        label: i === 0 ? 'Anglais' : `Anglais (${i + 1})`
-      }));
+      .map((s, i) => {
+        const isForced = /forc[eé]|forced/i.test(s.movieReleaseName || s.subtitleFileName || '');
+        const kind = isForced ? ' (forcé - OpenSubtitles)' : (i === 0 ? ' (OpenSubtitles)' : ` (OpenSubtitles ${i + 1})`);
+        return {
+          url: s.url,
+          lang: 'en',
+          language: 'eng',
+          label: `Anglais${kind}`
+        };
+      });
 
     return [...frSubs, ...enSubs];
   }

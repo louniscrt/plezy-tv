@@ -117,24 +117,35 @@ function createServer(options = {}) {
         const subId = route.slice('subtitles/'.length).replace(/\.vtt$/i, '');
         const entry = stremio.getTicket(subId);
         if (!entry) return send(404, { error: 'Sous-titres expirés' });
-        const wantedLang = url.searchParams.get('lang');
         const streamIdx = url.searchParams.get('stream');
+        const wantedLang = url.searchParams.get('lang');
         const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
-        if (streamIdx !== null || wantedLang === 'fr' || wantedLang === 'en' || (!entry.url.includes('.srt') && !entry.url.includes('.vtt'))) {
-          return require('./stremio-media').subtitleMedia(req, res, subId, { stream: streamIdx, lang: wantedLang || 'fr', identity: entry.url + JSON.stringify(entry.headers), upstreamUrl: entry.url, hasCustomHeaders });
+        if (entry.isSubtitle) {
+          fetch(entry.url, { signal: AbortSignal.timeout(10000), headers: entry.headers || {} })
+            .then(async r => {
+              if (!r.ok) throw new Error('HTTP ' + r.status);
+              const arrayBuf = await r.arrayBuffer();
+              let buf = Buffer.from(arrayBuf);
+              if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+                const zlib = require('node:zlib');
+                buf = zlib.gunzipSync(buf);
+              }
+              const clean = buf.toString('utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+              const vtt = clean.startsWith('WEBVTT')
+                ? clean
+                : 'WEBVTT\n\n' + clean.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2 --> $3.$4');
+              res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'private, max-age=3600', 'Access-Control-Allow-Origin': '*' });
+              res.end(req.method === 'HEAD' ? undefined : vtt);
+            })
+            .catch(() => {
+              if (!res.headersSent) {
+                res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'no-store' });
+                res.end('WEBVTT\n\n');
+              }
+            });
+          return;
         }
-        fetch(entry.url, { signal: AbortSignal.timeout(8000), headers: entry.headers || {} })
-          .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
-          .then(raw => {
-            const clean = String(raw || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
-            const vtt = clean.startsWith('WEBVTT')
-              ? clean
-              : 'WEBVTT\n\n' + clean.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2 --> $3.$4');
-            res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'private, max-age=3600', 'Access-Control-Allow-Origin': '*' });
-            res.end(req.method === 'HEAD' ? undefined : vtt);
-          })
-          .catch(() => { if (!res.headersSent) { res.writeHead(502); res.end(); } });
-        return;
+        return require('./stremio-media').subtitleMedia(req, res, subId, { stream: streamIdx, lang: wantedLang || 'fr', identity: entry.url + JSON.stringify(entry.headers), upstreamUrl: entry.url, hasCustomHeaders });
       }
       if (route.startsWith('hls/')) {
         const match = /^hls\/([a-f0-9]{48})\/(master\.m3u8|quality-(360|480|720|1080|2160)\.m3u8|segment-(360|480|720|1080|2160)-(\d+)\.ts)$/.exec(route);
@@ -188,7 +199,7 @@ function createServer(options = {}) {
           const mappedEnglish = english.map(s => ({ ...toTicket(s), lang: 'en', fallback: true }));
           const mappedFallback = fallback.map(s => ({ ...toTicket(s), fallback: true }));
           const mappedSubtitles = (rawSubs || []).map((s, idx) => {
-            const tPath = stremio.ticket({ url: s.url, headers: {} });
+            const tPath = stremio.ticket({ url: s.url, headers: {}, isSubtitle: true });
             const ticketId = tPath.split('/').pop();
             return {
               index: 101 + idx,
