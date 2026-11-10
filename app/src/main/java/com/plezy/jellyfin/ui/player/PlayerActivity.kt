@@ -407,8 +407,6 @@ class PlayerActivity : AppCompatActivity() {
         val bg = prefs.getInt("bg", android.graphics.Color.argb(190, 0, 0, 0))
         val bottom = prefs.getFloat("bottom", 0.20f)
         playerView.subtitleView?.apply {
-            setUserDefaultStyle(false)
-            setUserDefaultTextSize(false)
             setApplyEmbeddedStyles(false)
             setFractionalTextSize(scale)
             setBottomPaddingFraction(bottom)
