@@ -50,6 +50,9 @@
       const chosen = candidates[index];
       if (!chosen) {
         stremioIndices.delete(item.Id);
+        if (candidates.length === 0) {
+          throw new Error('Aucune source disponible pour ce titre. Il n\'est peut-être pas encore sorti ou disponible sur Real-Debrid.');
+        }
         throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
       }
       const useFallback = Boolean(chosen.fallback || force === 'compatible' || wantEnglish);

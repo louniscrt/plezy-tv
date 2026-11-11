@@ -395,10 +395,10 @@
       const wantedHeight = bitrate >= 18000000 ? 2160 : bitrate > 0 && bitrate <= 2000000 ? 480 : bitrate > 0 && bitrate <= 5000000 ? 720 : 1080;
       const rawUrl = active.offline ? plan.url : A.proxy(plan.url);
       const url = active.stremio && plan.hls ? rawUrl.replace('/master.m3u8', `/quality-${wantedHeight}.m3u8`) : rawUrl;
-      // Le lecteur natif de la TV évite le tampon et le transmuxage JS en double.
-      // HLS.js reste disponible si le moteur natif échoue ou n'est pas annoncé.
-      if (plan.hls && (preferMse || !nativeHls()) && window.Hls?.isSupported()) {
-        hls = new Hls({ startPosition: Math.max(0, desiredStart - offset), startLevel: 0, capLevelToPlayerSize: false, maxBufferLength: 12, maxMaxBufferLength: 24, maxBufferSize: 24*1000*1000, backBufferLength: 0, lowLatencyMode: false, manifestLoadingTimeOut: 25000, fragLoadingTimeOut: 45000 });
+      // Le lecteur natif de la TV évite le tampon et le transmuxage JS en double pour Jellyfin.
+      // En revanche, pour Stremio et si le moteur natif échoue, HLS.js garantit un démarrage immédiat.
+      if (plan.hls && (preferMse || !nativeHls() || active.stremio) && window.Hls?.isSupported()) {
+        hls = new Hls({ startPosition: Math.max(0, desiredStart - offset), startLevel: 0, capLevelToPlayerSize: false, maxBufferLength: 12, maxMaxBufferLength: 24, maxBufferSize: 24*1000*1000, backBufferLength: 0, lowLatencyMode: false, manifestLoadingTimeOut: 10000, fragLoadingTimeOut: 15000 });
         hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
           console.info('Plezy manifeste ' + JSON.stringify({ levels: data.levels?.length }));
         });
@@ -433,7 +433,20 @@
         throw new Error('Ce navigateur ne prend pas en charge la lecture HLS. Utilisez une version récente de Safari, Chrome, Edge ou Firefox.');
       } else video.src = url;
       switching = false;
-      startupTimer = setTimeout(() => { if (version === loadGeneration && state === 'loading') fail('La préparation de la vidéo prend trop de temps. Vérifiez le transcodage Jellyfin, puis réessayez.'); }, 45000);
+      startupTimer = setTimeout(() => {
+        if (version === loadGeneration && state === 'loading') {
+          if (plan?.hls && !hls && !preferMse && window.Hls?.isSupported()) {
+            preferMse = true;
+            run(() => load(desiredStart, false));
+            return;
+          }
+          if (active.stremio && plan?.hasMore) {
+            recover('La préparation du flux vidéo prend trop de temps. Essai d’une autre source…');
+            return;
+          }
+          fail('La préparation de la vidéo prend trop de temps. Vérifiez le transcodage Jellyfin, puis réessayez.');
+        }
+      }, 12000);
     } catch (error) {
       if (version !== loadGeneration || error.name === 'AbortError') return;
       switching = false;
