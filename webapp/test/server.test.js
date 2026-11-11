@@ -103,3 +103,28 @@ test('media conversion separates movie and TV ids and handles missing images and
 test('normalization preserves reverse-proxy subpaths and rejects embedded credentials',()=>{
  const api=apiContext();assert.equal(api.normalize('media.local:8096/jellyfin/web/index.html'),'http://media.local:8096/jellyfin');assert.throws(()=>api.normalize('http://user:password@localhost'));assert.throws(()=>api.normalize(''));
 });
+
+test('mock Jellyfin endpoints support TV app login and info without hard drives', async () => {
+ const srv = createServer({ stremio: { enabled: true } });
+ await new Promise(resolve => srv.listen(0, resolve));
+ const port = srv.address().port;
+ try {
+  const info = await fetch(`http://127.0.0.1:${port}/System/Info/Public`).then(r => r.json());
+  assert.equal(info.ServerName, 'Plezy');
+  assert.equal(info.StartupWizardCompleted, true);
+
+  const auth = await fetch(`http://127.0.0.1:${port}/Users/AuthenticateByName`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ Username: 'Lounis', Pw: '' })
+  }).then(r => r.json());
+  assert.ok(auth.AccessToken);
+  assert.equal(auth.User.Name, 'Lounis');
+
+  const qc = await fetch(`http://127.0.0.1:${port}/QuickConnect/Initiate`, { method: 'POST' }).then(r => r.json());
+  assert.equal(qc.Authenticated, true);
+  assert.ok(qc.Code);
+ } finally {
+  await new Promise(resolve => srv.close(resolve));
+ }
+});

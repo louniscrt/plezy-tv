@@ -234,6 +234,97 @@ function createServer(options = {}) {
       return;
     }
     if(url.pathname==='/api/seerr-pair' || url.pathname.startsWith('/api/seerr-pair/')) return pairing(req,res,url);
+    // Jellyfin compatibility endpoints for native TV apps and Jellyfin clients
+    if (url.pathname === '/System/Info/Public' || url.pathname === '/System/Info') {
+      const body = JSON.stringify({
+        ServerName: 'Plezy',
+        Version: '10.9.0',
+        ProductName: 'Plezy Server',
+        OperatingSystem: 'Linux',
+        Id: 'plezy-server',
+        StartupWizardCompleted: true
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (url.pathname === '/Users/Public') {
+      const body = JSON.stringify([{
+        Name: 'Lounis',
+        Id: 'user_lounis',
+        HasPassword: false,
+        EnableAutoLogin: true
+      }]);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (url.pathname === '/Users/AuthenticateByName' && req.method === 'POST') {
+      const body = JSON.stringify({
+        AccessToken: 'plezy_local_token',
+        ServerId: 'plezy-server',
+        User: {
+          Name: 'Lounis',
+          Id: 'user_lounis',
+          HasPassword: false
+        },
+        SessionInfo: {
+          Id: 'plezy_session'
+        }
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(body);
+    }
+    if (url.pathname === '/Users/Me' || url.pathname === '/Users/user_lounis') {
+      const body = JSON.stringify({
+        Name: 'Lounis',
+        Id: 'user_lounis',
+        HasPassword: false
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (url.pathname === '/QuickConnect/Initiate' && req.method === 'POST') {
+      const body = JSON.stringify({
+        Code: '123456',
+        Secret: 'plezy_qc_secret',
+        Authenticated: true
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(body);
+    }
+    if (url.pathname === '/QuickConnect/Connect') {
+      const body = JSON.stringify({
+        Authenticated: true,
+        Secret: 'plezy_qc_secret'
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (url.pathname === '/Users/AuthenticateWithQuickConnect' && req.method === 'POST') {
+      const body = JSON.stringify({
+        AccessToken: 'plezy_local_token',
+        ServerId: 'plezy-server',
+        User: {
+          Name: 'Lounis',
+          Id: 'user_lounis',
+          HasPassword: false
+        }
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(body);
+    }
+    if (/^\/Users\/[^/]+\/Items(?:\/|$)/.test(url.pathname)) {
+      const body = JSON.stringify({ Items: [], TotalRecordCount: 0 });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (url.pathname.startsWith('/Sessions/Playing') || url.pathname.startsWith('/DisplayPreferences/')) {
+      if (['POST', 'DELETE'].includes(req.method)) {
+        res.writeHead(204);
+        return res.end();
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end('{"Id":"pref","CustomPrefs":{}}');
+    }
     if (url.pathname === '/proxy') {
       // Le relais est réservé aux pages servies par cette application.
       if (req.headers['sec-fetch-site'] === 'cross-site' || req.headers.origin && req.headers.origin !== 'http://' + req.headers.host && req.headers.origin !== 'https://' + req.headers.host) { res.writeHead(403); return res.end('Origine refusée'); }

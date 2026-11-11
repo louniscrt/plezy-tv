@@ -155,8 +155,8 @@ function rawProbe(source, identity = source) {
   const hit=probes.get(identity);if(hit && hit.until>Date.now())return hit.promise;
   if(probes.size>=256)probes.delete(probes.keys().next().value);
   const promise=new Promise((resolve,reject)=>{
-    const child=spawn('ffprobe',['-v','error','-rw_timeout','8000000','-probesize','1500000','-analyzeduration','1500000','-show_streams','-show_format','-show_chapters','-of','json',source],{stdio:['ignore','pipe','ignore']});
-    let text='';const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Analyse vidéo trop longue.'));},7500);
+    const child=spawn('ffprobe',['-v','error','-rw_timeout','15000000','-probesize','2000000','-analyzeduration','2000000','-show_streams','-show_format','-show_chapters','-of','json',source],{stdio:['ignore','pipe','ignore']});
+    let text='';const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Analyse vidéo trop longue.'));},20000);
     child.stdout.on('data',chunk=>{text+=chunk;if(text.length>1048576){child.kill('SIGKILL');reject(new Error('Métadonnées trop volumineuses.'));}});
     child.on('error',()=>{clearTimeout(timer);reject(new Error('Adaptation vidéo indisponible.'));});
     child.on('close',code=>{clearTimeout(timer);if(code!==0)return reject(new Error('Source vidéo indisponible.'));try{const data=JSON.parse(text);if(!(data.streams||[]).some(s=>s.codec_type==='audio'))throw new Error('Sans audio');resolve(data);}catch{reject(new Error('Aucune piste française lisible identifiée.'));}});

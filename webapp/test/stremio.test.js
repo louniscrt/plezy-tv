@@ -195,3 +195,41 @@ test('resolving tmdb: prefix queries stream addons with resolved IMDb ID and ret
   assert.equal(res.streams[0].url, 'https://cdn.test/dark-knight.mp4');
   assert.ok(calls.some(c => c.includes('/stream/movie/tt0468569.json')));
 });
+
+test('subtitles query merges multiple sources including SubSense and OpenSubtitles', async () => {
+  const engine = createStremio({
+    config: {
+      addons: ['https://stream.test/manifest.json']
+    },
+    fetchJSON: async (url) => {
+      if (url.endsWith('manifest.json')) {
+        return {
+          types: ['movie', 'series'],
+          resources: [{ name: 'subtitles', types: ['movie', 'series'], idPrefixes: ['tt'] }]
+        };
+      }
+      if (url.includes('opensubtitles')) {
+        return {
+          subtitles: [
+            { url: 'https://sub.test/os-fr.srt', lang: 'fre', movieReleaseName: 'Movie.BluRay.FR' },
+            { url: 'https://sub.test/os-en.srt', lang: 'eng', movieReleaseName: 'Movie.BluRay.EN' }
+          ]
+        };
+      }
+      if (url.includes('subsense')) {
+        return {
+          subtitles: [
+            { url: 'https://sub.test/subsense-fr.vtt', lang: 'fre', source: 'subdl', movieReleaseName: 'Movie.WEB-DL.FR' }
+          ]
+        };
+      }
+      return { subtitles: [] };
+    }
+  });
+
+  const subs = await engine.subtitles(encodeId('movie', 'tt1234567'));
+  assert.ok(subs.length >= 2);
+  const fr = subs.filter(s => s.lang === 'fr');
+  assert.ok(fr.some(s => s.label.includes('OpenSubtitles') || s.label.includes('Subdl') || s.label.includes('SubSense')));
+  assert.ok(subs.some(s => s.lang === 'en'));
+});

@@ -48,18 +48,24 @@
       stremioIndices.set(item.Id, index);
       if (stremioIndices.size > 200) stremioIndices.delete(stremioIndices.keys().next().value);
       const chosen = candidates[index];
-      if (!chosen) throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
+      if (!chosen) {
+        stremioIndices.delete(item.Id);
+        throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
+      }
       const useFallback = Boolean(chosen.fallback || force === 'compatible' || wantEnglish);
       const probeParts = ['probe=1', ...(start > 0 ? [`start=${Math.floor(start)}`] : []), ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
       let response = await fetch(`${chosen.url}?${probeParts.join('&')}`, { signal });
       let forcedCompatible = false;
       if (!response.ok) {
-        if (index + 1 < candidates.length) return negotiate(item, { force: true, start, audio, subtitle, bitrate, mp4, webm, hevc, signal });
         if (!useFallback) {
           response = await fetch(`${chosen.url}?${[...probeParts, 'fallback=1'].join('&')}`, { signal });
           forcedCompatible = response.ok;
         }
-        if (!response.ok) throw new Error('Aucune piste française lisible disponible. Utilisez Télécharger via Seerr dans Plus d’options.');
+        if (!response.ok) {
+          if (index + 1 < candidates.length) return negotiate(item, { force: true, start, audio, subtitle, bitrate, mp4, webm, hevc, signal });
+          stremioIndices.delete(item.Id);
+          throw new Error('Aucune piste lisible disponible. Essayez en qualité compatible ou vérifiez vos addons.');
+        }
       }
       const info = await response.json();
       if (wantEnglish && info && info.hasEnglishAudio === false && index === 0 && candidates.length > 1) {
