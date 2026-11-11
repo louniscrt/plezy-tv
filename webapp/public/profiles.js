@@ -132,12 +132,16 @@
     `
   };
 
-  const DEFAULT_PROFILES = [
-    { id: 'djey', name: 'Djey', avatar: 'djey' },
-    { id: 'karine', name: 'Karine', avatar: 'karine' },
-    { id: 'lounis', name: 'Lounis', avatar: 'lounis' },
-    { id: 'timeo', name: 'Timéo', avatar: 'timeo' }
+  const AVATAR_CHOICES = [
+    { key: 'lounis', label: 'Cercle Néon' },
+    { key: 'djey', label: 'Aviateur' },
+    { key: 'karine', label: 'Fleurs' },
+    { key: 'timeo', label: 'Monstre' },
+    { key: 'initials', label: 'Initiale' }
   ];
+
+  // Profils par défaut vides pour permettre de créer des profils personnalisés tout neufs
+  const DEFAULT_PROFILES = [];
 
   function getAvatarSvg(avatarKey, initial = 'P') {
     if (avatarKey && AVATAR_SVGS[avatarKey.toLowerCase()]) {
@@ -169,14 +173,27 @@
 
   function getProfiles() {
     try {
+      // Nettoyage automatique des anciens profils par défaut pour repartir à zéro
+      if (!localStorage.getItem('plezy.web.profiles.v2')) {
+        localStorage.setItem('plezy.web.profiles.v2', '1');
+        const raw = localStorage.getItem('plezy.web.profiles');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length === 4 && parsed.every(p => ['djey', 'karine', 'lounis', 'timeo'].includes(p.id))) {
+            localStorage.removeItem('plezy.web.profiles');
+            localStorage.removeItem('plezy.web.activeProfile');
+            return [];
+          }
+        }
+      }
       const stored = localStorage.getItem('plezy.web.profiles');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed.map(p => ({
             id: p.id || p.user || String(p.name || '').toLowerCase().replace(/\s+/g, '-'),
             name: p.name || 'Profil',
-            avatar: p.avatar || (DEFAULT_PROFILES.find(d => d.name.toLowerCase() === (p.name || '').toLowerCase())?.avatar) || 'lounis',
+            avatar: p.avatar || 'lounis',
             server: p.server,
             user: p.user || p.id,
             token: p.token
@@ -184,9 +201,7 @@
         }
       }
     } catch {}
-    // Seed with the 4 household profiles from user's Netflix screenshot
-    saveProfiles(DEFAULT_PROFILES);
-    return DEFAULT_PROFILES;
+    return [];
   }
 
   function saveProfiles(profiles) {
@@ -199,9 +214,10 @@
     try {
       const activeId = localStorage.getItem('plezy.web.activeProfile');
       const list = getProfiles();
+      if (!list.length) return null;
       return list.find(p => p.id === activeId || p.user === activeId || p.name === activeId) || list[0];
     } catch {
-      return DEFAULT_PROFILES[0];
+      return null;
     }
   }
 
@@ -214,6 +230,7 @@
 
   window.PlezyProfiles = {
     AVATAR_SVGS,
+    AVATAR_CHOICES,
     DEFAULT_PROFILES,
     getAvatarSvg,
     getProfiles,

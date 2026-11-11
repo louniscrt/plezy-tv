@@ -40,10 +40,10 @@ test('profiles.js provides household default profiles and custom SVG avatars', (
 
   assert.ok(windowObj.PlezyProfiles, 'window.PlezyProfiles must be exported');
   const defaults = windowObj.PlezyProfiles.DEFAULT_PROFILES;
-  assert.equal(defaults.length, 4);
-  assert.deepEqual(defaults.map(p => p.name), ['Djey', 'Karine', 'Lounis', 'Timéo']);
+  assert.equal(defaults.length, 0, 'Default profiles start clean/empty for custom user profiles');
+  assert.deepEqual(windowObj.PlezyProfiles.getProfiles(), []);
 
-  // SVGs exist for each
+  // SVGs exist for each avatar choice
   assert.ok(windowObj.PlezyProfiles.getAvatarSvg('lounis').includes('ringGlow'));
   assert.ok(windowObj.PlezyProfiles.getAvatarSvg('djey').includes('<svg'));
   assert.ok(windowObj.PlezyProfiles.getAvatarSvg('karine').includes('<svg'));

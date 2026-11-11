@@ -456,6 +456,7 @@
 
     const btnManage = $('btnManageProfiles');
     if (btnManage) {
+      btnManage.hidden = storedProfiles.length === 0;
       btnManage.classList.toggle('active', manage);
       const lbl = $('lblManageProfiles');
       if (lbl) lbl.textContent = manage ? 'Terminer' : 'Gérer les profils';
@@ -473,6 +474,41 @@
     const nameField = field('Nom du profil', profile.name || '', 'text');
     let selectedAvatar = profile.avatar || 'lounis';
 
+    const avatarWrap = document.createElement('div');
+    avatarWrap.className = 'profile-avatar-selector';
+    avatarWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;margin:16px 0;flex-wrap:wrap;';
+
+    const choices = window.PlezyProfiles?.AVATAR_CHOICES || [
+      { key: 'lounis', label: 'Cercle Néon' },
+      { key: 'djey', label: 'Aviateur' },
+      { key: 'karine', label: 'Fleurs' },
+      { key: 'timeo', label: 'Monstre' },
+      { key: 'initials', label: 'Initiale' }
+    ];
+
+    choices.forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'avatar-pick-btn' + (c.key === selectedAvatar ? ' active' : '');
+      btn.style.cssText = 'width:60px;height:60px;border-radius:10px;padding:3px;background:rgba(255,255,255,0.08);cursor:pointer;border:3px solid ' + (c.key === selectedAvatar ? '#e50914' : 'transparent') + ';transition:all 0.15s;';
+      btn.title = c.label;
+      btn.innerHTML = window.PlezyProfiles ? window.PlezyProfiles.getAvatarSvg(c.key, nameField.input.value || profile.name || 'P') : '';
+      btn.onclick = () => {
+        selectedAvatar = c.key;
+        avatarWrap.querySelectorAll('.avatar-pick-btn').forEach(b => { b.style.borderColor = 'transparent'; b.classList.remove('active'); });
+        btn.style.borderColor = '#e50914';
+        btn.classList.add('active');
+      };
+      avatarWrap.appendChild(btn);
+    });
+
+    nameField.input.addEventListener('input', () => {
+      const initBtn = avatarWrap.querySelector('[title="Initiale"]');
+      if (initBtn && window.PlezyProfiles) {
+        initBtn.innerHTML = window.PlezyProfiles.getAvatarSvg('initials', nameField.input.value || profile.name || 'P');
+      }
+    });
+
     const saveBtn = action('Enregistrer les modifications', () => {
       const newName = nameField.input.value.trim() || profile.name;
       const list = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
@@ -488,14 +524,10 @@
 
     const delBtn = action('Supprimer ce profil', () => {
       let list = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
-      if (list.length <= 1) {
-        toast('Au moins un profil doit être conservé.');
-        return;
-      }
       list = list.filter(x => (x.id || x.name) !== (profile.id || profile.name));
       if (window.PlezyProfiles) window.PlezyProfiles.saveProfiles(list);
       closeModal();
-      renderNetflixProfilesScreen(true);
+      renderNetflixProfilesScreen(list.length > 0);
     }, 'btn btn-ghost');
 
     const backBtn = action('Retour', () => {
@@ -503,34 +535,69 @@
       renderNetflixProfilesScreen(true);
     }, 'btn btn-ghost');
 
-    modal('Modifier le profil « ' + profile.name + ' »', [nameField.node, saveBtn, delBtn, backBtn]);
+    modal('Modifier le profil « ' + profile.name + ' »', [nameField.node, avatarWrap, saveBtn, delBtn, backBtn]);
   }
 
   function addProfileModal() {
     const nameField = field('Nom du nouveau profil', '', 'text');
     let selectedAvatar = 'lounis';
 
+    const avatarWrap = document.createElement('div');
+    avatarWrap.className = 'profile-avatar-selector';
+    avatarWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;margin:16px 0;flex-wrap:wrap;';
+
+    const choices = window.PlezyProfiles?.AVATAR_CHOICES || [
+      { key: 'lounis', label: 'Cercle Néon' },
+      { key: 'djey', label: 'Aviateur' },
+      { key: 'karine', label: 'Fleurs' },
+      { key: 'timeo', label: 'Monstre' },
+      { key: 'initials', label: 'Initiale' }
+    ];
+
+    choices.forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'avatar-pick-btn' + (c.key === selectedAvatar ? ' active' : '');
+      btn.style.cssText = 'width:60px;height:60px;border-radius:10px;padding:3px;background:rgba(255,255,255,0.08);cursor:pointer;border:3px solid ' + (c.key === selectedAvatar ? '#e50914' : 'transparent') + ';transition:all 0.15s;';
+      btn.title = c.label;
+      btn.innerHTML = window.PlezyProfiles ? window.PlezyProfiles.getAvatarSvg(c.key, nameField.input.value || 'P') : '';
+      btn.onclick = () => {
+        selectedAvatar = c.key;
+        avatarWrap.querySelectorAll('.avatar-pick-btn').forEach(b => { b.style.borderColor = 'transparent'; b.classList.remove('active'); });
+        btn.style.borderColor = '#e50914';
+        btn.classList.add('active');
+      };
+      avatarWrap.appendChild(btn);
+    });
+
+    nameField.input.addEventListener('input', () => {
+      const initBtn = avatarWrap.querySelector('[title="Initiale"]');
+      if (initBtn && window.PlezyProfiles) {
+        initBtn.innerHTML = window.PlezyProfiles.getAvatarSvg('initials', nameField.input.value || 'P');
+      }
+    });
+
     const createBtn = action('Créer le profil', () => {
       const name = nameField.input.value.trim();
       if (!name) { toast('Veuillez entrer un nom de profil.'); return; }
       const list = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
-      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      list.push({ id, name, avatar: selectedAvatar });
-      if (window.PlezyProfiles) window.PlezyProfiles.saveProfiles(list);
+      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now().toString(36).slice(-4);
+      const newProfile = { id, name, avatar: selectedAvatar };
+      list.push(newProfile);
+      if (window.PlezyProfiles) {
+        window.PlezyProfiles.saveProfiles(list);
+        window.PlezyProfiles.setActiveProfile(newProfile);
+      }
       closeModal();
       renderNetflixProfilesScreen(false);
     }, 'btn btn-white');
-
-    const jfBtn = action('Connecter un compte Jellyfin', () => {
-      connectAnotherProfile();
-    }, 'btn btn-ghost');
 
     const cancelBtn = action('Annuler', () => {
       closeModal();
       renderNetflixProfilesScreen(false);
     }, 'btn btn-ghost');
 
-    modal('Ajouter un profil', [nameField.node, createBtn, jfBtn, cancelBtn]);
+    modal('Ajouter un profil', [nameField.node, avatarWrap, createBtn, cancelBtn]);
   }
 
   function chooseProfile(manage = false) {
