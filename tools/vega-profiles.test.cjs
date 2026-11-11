@@ -67,3 +67,28 @@ test('Vega loads profile modules, original right header avatar and scoped remote
  assert.ok(ui.includes("add.setAttribute('aria-label', 'Connecter un autre profil')"));
  assert.ok(!ui.includes('innerHTML'));
 });
+
+test('Vega TV includes Netflix startup profiles screen and restored next episode button', () => {
+ const html = fs.readFileSync('PlezyTV-VegaOS/bundle/index.html', 'utf8');
+ const app = fs.readFileSync('PlezyTV-VegaOS/bundle/app.js', 'utf8');
+ const profiles = require('../PlezyTV-VegaOS/bundle/profiles.js');
+
+ assert.ok(html.includes('id="screen-profiles"'));
+ assert.ok(html.includes('Qui est-ce ?'));
+ assert.ok(html.includes('id="btnManageProfiles"'));
+ assert.ok(html.includes('id="btn-player-next"'));
+ assert.ok(html.includes('next-toggle'));
+
+ assert.ok(app.includes('playNext'));
+ assert.ok(app.includes('togglePlay'));
+ assert.ok(app.includes('seekRelative'));
+
+ assert.equal(profiles.DEFAULT_PROFILES.length, 4);
+ const names = profiles.DEFAULT_PROFILES.map(p => p.name);
+ assert.deepEqual(names, ['Djey', 'Karine', 'Lounis', 'Timéo']);
+
+ for (const id of ['djey', 'karine', 'lounis', 'timeo']) {
+   const svg = profiles.getAvatarSvg(id);
+   assert.ok(svg.includes('<svg'));
+ }
+});
