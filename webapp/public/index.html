@@ -17,7 +17,8 @@
 <script src="seerr-session.js?v=20261110-v11" defer></script>
 <script src="demo.js" defer></script>
 <script src="resume.js?v=20261110-v11" defer></script>
-<script src="offline.js" defer></script>
+<script src="profiles.js?v=20261111-v1" defer></script>
+<script src="offline.js?v=20261110-v11" defer></script>
 <script src="detail.js?v=20261110-v11" defer></script>
 <script src="app.js?v=20261110-v11" defer></script>
 <script src="playback.js?v=20261110-v11" defer></script>
@@ -27,6 +28,23 @@
 <script src="seerr-pairing.js?v=20261110-v11" defer></script>
 </head>
 <body>
+
+<!-- ===================== CHOISIR LE PROFIL (NETFLIX STYLE) ===================== -->
+<section id="screen-profiles" class="screen" hidden>
+  <div class="profiles-brand">
+    <span class="profiles-logo">PLEZY</span>
+  </div>
+  <div class="profiles-container">
+    <h1 class="profiles-title">Qui est-ce ?</h1>
+    <div class="profiles-grid" id="profilesGrid" role="list"></div>
+    <div class="profiles-actions">
+      <button class="btn-manage-profiles" id="btnManageProfiles" type="button">
+        <svg class="manage-pencil" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="lblManageProfiles">Gérer les profils</span>
+      </button>
+    </div>
+  </div>
+</section>
 
 <!-- ===================== CONNEXION ===================== -->
 <section id="screen-login" class="screen" hidden>
@@ -200,6 +218,7 @@
       <div class="player-controls">
         <div class="player-transport">
           <button class="player-icon play-toggle" id="pPlay" title="Lecture / Pause" aria-label="Lecture"><svg viewBox="0 0 24 24" class="fill" id="pPlayIco"><path d="M7 3v18l15-9z"/></svg></button>
+          <button class="player-icon next-toggle" id="pNext" title="Épisode suivant" aria-label="Épisode suivant"><svg viewBox="0 0 24 24"><path d="m4 4 13 8L4 20zM20 4v16"/></svg></button>
 
           <button class="player-icon skip-button" id="pRew" title="Reculer de 10 secondes" aria-label="Reculer de 10 secondes"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 0 5M4 4v6h6"/></svg><b>10</b></button>
           <button class="player-icon skip-button" id="pFwd" title="Avancer de 10 secondes" aria-label="Avancer de 10 secondes"><svg viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0 0 5M20 4v6h-6"/></svg><b>10</b></button>
@@ -212,8 +231,6 @@
         <div class="player-now" aria-live="off"><strong id="pTitle"></strong><span id="pSub"></span></div>
         <div class="player-languages" id="pLanguages" aria-label="Choix rapides des langues"></div>
         <div class="player-tools">
-          <button class="player-icon" id="pNext" title="Épisode suivant" aria-label="Épisode suivant" hidden><svg viewBox="0 0 24 24"><path d="m4 4 13 8L4 20zM20 4v16"/></svg></button>
-
           <button class="player-icon" id="pEpisodes" title="Épisodes" aria-label="Épisodes" hidden><svg viewBox="0 0 24 24"><rect x="2" y="9" width="14" height="11" rx="1"/><path d="M6 5h14v11M10 1h14v11"/></svg></button>
           <button class="player-icon" id="pTracks" title="Audio et sous-titres" aria-label="Audio et sous-titres"><svg viewBox="0 0 24 24"><path d="M3 3h18v14h-5l-4 4-4-4H3zM6 8h5m3 0h4M6 12h12"/></svg></button>
           <button class="player-icon" id="pSpeed" title="Vitesse de lecture" aria-label="Vitesse de lecture"><svg viewBox="0 0 24 24"><path d="M4 20a10 10 0 1 1 16 0M12 12l6-6"/><circle cx="12" cy="12" r="2"/></svg></button>

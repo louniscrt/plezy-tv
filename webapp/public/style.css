@@ -18,6 +18,34 @@ input{font:inherit;color:#fff}
 .profile-tile:nth-child(2n) .profile-avatar{background:linear-gradient(135deg,#8056ad,#343256)}
 .profile-tile:hover,.profile-tile:focus-visible{border-color:#fff;color:#fff;outline:none;transform:scale(1.04)}
 @media(max-width:480px){.profile-grid{gap:10px}.profile-tile{width:110px}.profile-avatar{width:88px;height:88px}}
+
+/* ===================== ÉCRAN CHOISIR LE PROFIL (NETFLIX STYLE) ===================== */
+#screen-profiles{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#141414;background-image:radial-gradient(circle at 50% 45%,rgba(32,44,65,0.45) 0%,rgba(5,7,11,0.96) 80%),linear-gradient(180deg,rgba(0,0,0,0.65) 0%,rgba(0,0,0,0.3) 40%,rgba(0,0,0,0.9) 100%);background-size:cover;background-position:center;color:#fff;user-select:none;overflow:hidden}
+#screen-profiles[hidden]{display:none !important}
+.profiles-brand{position:absolute;top:clamp(20px,3.5vw,44px);left:clamp(24px,4.5vw,60px);z-index:2}
+.profiles-brand .profiles-logo{font-size:clamp(26px,3vw,40px);font-weight:900;letter-spacing:3px;color:#e50914;text-transform:uppercase;font-family:Inter,system-ui,sans-serif;text-shadow:0 2px 12px rgba(229,9,20,0.4)}
+.profiles-container{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:1200px;padding:20px;animation:profilesFadeIn .3s ease-out}
+@keyframes profilesFadeIn{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:scale(1)}}
+.profiles-title{font-size:clamp(2.2rem,3.8vw,3.8rem);font-weight:600;color:#fff;margin:0 0 clamp(24px,3.5vw,44px);text-align:center;letter-spacing:.5px;text-shadow:0 2px 10px rgba(0,0,0,0.85)}
+.profiles-grid{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:clamp(16px,2.2vw,36px);margin-bottom:clamp(30px,4vw,56px)}
+.profile-card{display:flex;flex-direction:column;align-items:center;gap:14px;background:none;border:none;padding:0;cursor:pointer;outline:none;transition:transform .22s cubic-bezier(0.2,0,0,1)}
+.profile-avatar-wrap{position:relative;width:clamp(100px,11vw,144px);height:clamp(100px,11vw,144px);border-radius:8px;overflow:hidden;box-sizing:border-box;background-color:#1c202d;border:3.5px solid transparent;transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease}
+.profile-card:hover .profile-avatar-wrap,.profile-card:focus-visible .profile-avatar-wrap,.profile-card.tv-focused .profile-avatar-wrap{border-color:#ffffff;box-shadow:0 0 0 2px rgba(255,255,255,0.45),0 10px 30px rgba(0,0,0,0.85);transform:scale(1.08)}
+.profile-card:hover .profile-name,.profile-card:focus-visible .profile-name,.profile-card.tv-focused .profile-name{color:#ffffff;font-weight:600}
+.profile-avatar-wrap svg{width:100%;height:100%;display:block}
+.profile-name{color:#888ea0;font-size:clamp(14px,1.25vw,19px);font-weight:500;text-align:center;letter-spacing:.3px;transition:color .2s ease;max-width:144px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-edit-badge{position:absolute;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;border-radius:6px;backdrop-filter:blur(2px)}
+.profile-edit-badge svg{width:36px;height:36px;fill:none;stroke:#ffffff;stroke-width:2.2;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.8))}
+.profile-card-add .profile-avatar-wrap{background:rgba(255,255,255,0.05);border:1.5px dashed rgba(255,255,255,0.28);display:flex;align-items:center;justify-content:center}
+.profile-card-add:hover .profile-avatar-wrap,.profile-card-add:focus-visible .profile-avatar-wrap,.profile-card-add.tv-focused .profile-avatar-wrap{border-color:#ffffff;border-style:solid;background:rgba(255,255,255,0.14)}
+.profile-add-icon{width:46px;height:46px;stroke:#888ea0;transition:stroke .2s ease}
+.profile-card-add:hover .profile-add-icon,.profile-card-add:focus-visible .profile-add-icon,.profile-card-add.tv-focused .profile-add-icon{stroke:#ffffff}
+.profiles-actions{display:flex;justify-content:center;align-items:center}
+.btn-manage-profiles{display:inline-flex;align-items:center;gap:10px;background:transparent;color:#888ea0;border:1.5px solid #888ea0;padding:10px 28px;font-size:clamp(13px,1.05vw,16px);font-weight:600;letter-spacing:1.8px;text-transform:uppercase;border-radius:3px;cursor:pointer;transition:all .2s ease;outline:none}
+.btn-manage-profiles svg{width:18px;height:18px;stroke:currentColor}
+.btn-manage-profiles:hover,.btn-manage-profiles:focus-visible,.btn-manage-profiles.tv-focused{border-color:#ffffff;color:#ffffff;background:rgba(255,255,255,0.12);box-shadow:0 0 16px rgba(255,255,255,0.25)}
+.btn-manage-profiles.active{background:#ffffff;color:#141414;border-color:#ffffff;font-weight:700}
+
 svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 svg.fill{fill:currentColor;stroke:none}
 .screen{position:fixed;inset:0;overflow:hidden}

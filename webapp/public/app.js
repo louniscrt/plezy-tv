@@ -53,13 +53,14 @@
     return { node, input };
   }
   function picture(item, type, width, cls) {
-    const image = el('img', cls); image.alt = ''; image.loading = 'lazy';
+    const image = el('img', cls); image.alt = ''; image.loading = 'lazy'; image.decoding = 'async';
     const src = A.image(item, type, width);
     if (src) image.src = src;
     image.onerror = () => image.remove(); return image;
   }
   function backdrop(id, item, type = 'Backdrop') {
     const image = $(id), src = A.image(item, type, 1600);
+    image.decoding = 'async';
     image.classList.remove('on'); image.onload = () => image.classList.add('on');
     image.onerror = () => { image.removeAttribute('src'); image.classList.remove('on'); };
     if (src) image.src = src; else image.removeAttribute('src');
@@ -379,7 +380,163 @@
   $('inPass').onkeydown = e => { if (e.key === 'Enter') login(); };
   $('btnDemo').onclick = () => { ++qcVersion; C.demo = true; C.name = 'Démo'; A.save(); run(boot); };
   $('btnSettings').onclick = settings;
+  function renderNetflixProfilesScreen(manage = false) {
+    const screenProfiles = $('screen-profiles');
+    const grid = $('profilesGrid');
+    if (!screenProfiles || !grid || typeof document === 'undefined') return false;
+    show('profiles', false);
+    grid.replaceChildren();
+
+    const storedProfiles = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
+    const active = window.PlezyProfiles ? window.PlezyProfiles.getActiveProfile() : null;
+
+    storedProfiles.forEach(p => {
+      const card = document.createElement('button');
+      card.className = 'profile-card';
+      card.type = 'button';
+      card.dataset.profileId = p.id || p.user || p.name;
+      card.tabIndex = 0;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'profile-avatar-wrap';
+      wrap.innerHTML = window.PlezyProfiles ? window.PlezyProfiles.getAvatarSvg(p.avatar, p.name || 'P') : '';
+
+      if (manage) {
+        const badge = document.createElement('div');
+        badge.className = 'profile-edit-badge';
+        badge.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
+        wrap.appendChild(badge);
+      }
+
+      const name = document.createElement('span');
+      name.className = 'profile-name';
+      name.textContent = p.name || 'Profil';
+
+      card.appendChild(wrap);
+      card.appendChild(name);
+
+      card.onclick = async () => {
+        if (manage) {
+          editProfileModal(p);
+          return;
+        }
+        if (window.PlezyProfiles) window.PlezyProfiles.setActiveProfile(p);
+        C.name = p.name || 'Profil';
+        C.user = p.user || p.id || 'user';
+        if (p.server) C.server = p.server;
+        if (p.token) C.token = p.token;
+        A.save();
+        text('btnProfile', (p.name || 'P').slice(0, 1).toUpperCase());
+        $('modal').hidden = true;
+        show('main');
+        await boot();
+      };
+
+      grid.appendChild(card);
+    });
+
+    const addCard = document.createElement('button');
+    addCard.className = 'profile-card profile-card-add';
+    addCard.type = 'button';
+    addCard.tabIndex = 0;
+    addCard.setAttribute('aria-label', 'Ajouter un profil');
+
+    const addWrap = document.createElement('div');
+    addWrap.className = 'profile-avatar-wrap';
+    addWrap.innerHTML = '<svg viewBox="0 0 24 24" class="profile-add-icon"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+
+    const addName = document.createElement('span');
+    addName.className = 'profile-name';
+    addName.textContent = 'Ajouter un profil';
+
+    addCard.appendChild(addWrap);
+    addCard.appendChild(addName);
+    addCard.onclick = () => addProfileModal();
+    grid.appendChild(addCard);
+
+    const btnManage = $('btnManageProfiles');
+    if (btnManage) {
+      btnManage.classList.toggle('active', manage);
+      const lbl = $('lblManageProfiles');
+      if (lbl) lbl.textContent = manage ? 'Terminer' : 'Gérer les profils';
+      btnManage.onclick = () => renderNetflixProfilesScreen(!manage);
+    }
+
+    setTimeout(() => {
+      const target = grid.querySelector(`[data-profile-id="${active?.id || active?.user || active?.name}"]`) || grid.querySelector('.profile-card');
+      target?.focus();
+    }, 60);
+    return true;
+  }
+
+  function editProfileModal(profile) {
+    const nameField = field('Nom du profil', profile.name || '', 'text');
+    let selectedAvatar = profile.avatar || 'lounis';
+
+    const saveBtn = action('Enregistrer les modifications', () => {
+      const newName = nameField.input.value.trim() || profile.name;
+      const list = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
+      const item = list.find(x => (x.id || x.name) === (profile.id || profile.name));
+      if (item) {
+        item.name = newName;
+        item.avatar = selectedAvatar;
+        if (window.PlezyProfiles) window.PlezyProfiles.saveProfiles(list);
+      }
+      closeModal();
+      renderNetflixProfilesScreen(true);
+    }, 'btn btn-white');
+
+    const delBtn = action('Supprimer ce profil', () => {
+      let list = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
+      if (list.length <= 1) {
+        toast('Au moins un profil doit être conservé.');
+        return;
+      }
+      list = list.filter(x => (x.id || x.name) !== (profile.id || profile.name));
+      if (window.PlezyProfiles) window.PlezyProfiles.saveProfiles(list);
+      closeModal();
+      renderNetflixProfilesScreen(true);
+    }, 'btn btn-ghost');
+
+    const backBtn = action('Retour', () => {
+      closeModal();
+      renderNetflixProfilesScreen(true);
+    }, 'btn btn-ghost');
+
+    modal('Modifier le profil « ' + profile.name + ' »', [nameField.node, saveBtn, delBtn, backBtn]);
+  }
+
+  function addProfileModal() {
+    const nameField = field('Nom du nouveau profil', '', 'text');
+    let selectedAvatar = 'lounis';
+
+    const createBtn = action('Créer le profil', () => {
+      const name = nameField.input.value.trim();
+      if (!name) { toast('Veuillez entrer un nom de profil.'); return; }
+      const list = window.PlezyProfiles ? window.PlezyProfiles.getProfiles() : [];
+      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      list.push({ id, name, avatar: selectedAvatar });
+      if (window.PlezyProfiles) window.PlezyProfiles.saveProfiles(list);
+      closeModal();
+      renderNetflixProfilesScreen(false);
+    }, 'btn btn-white');
+
+    const jfBtn = action('Connecter un compte Jellyfin', () => {
+      connectAnotherProfile();
+    }, 'btn btn-ghost');
+
+    const cancelBtn = action('Annuler', () => {
+      closeModal();
+      renderNetflixProfilesScreen(false);
+    }, 'btn btn-ghost');
+
+    modal('Ajouter un profil', [nameField.node, createBtn, jfBtn, cancelBtn]);
+  }
+
   function chooseProfile(manage = false) {
+    if (typeof document !== 'undefined' && $('screen-profiles') && $('profilesGrid')) {
+      renderNetflixProfilesScreen(manage);
+    }
     const grid = el('div', 'profile-grid');
     for (const profile of A.profiles()) {
       const button = action('', async () => {
@@ -400,6 +557,9 @@
     const extra = el('div', 'profile-extra');
     extra.append(addProfile, el('span', 'muted', 'Connecter un autre profil'));
     modal('Qui est-ce ?', [grid, extra, el('p', 'muted', 'Les comptes connectés sont mémorisés sur cet appareil. Choisir un profil donne accès à sa session ; ceci ne remplace pas un verrouillage par mot de passe.'), action(manage ? 'Terminer' : 'Gérer les profils', () => chooseProfile(!manage)), action('Réglages', settings)]);
+    if (typeof document !== 'undefined' && $('screen-profiles') && $('profilesGrid')) {
+      $('modal').hidden = true;
+    }
   }
   function connectAnotherProfile() {
     A.rememberProfile();
@@ -495,6 +655,10 @@
     A.initStremio().then(enabled => {
       C.stremio = enabled; if (enabled) C.demo = false;
       if (C.token && C.user || C.demo || enabled) run(async () => {
+        if ($('screen-profiles')) {
+          chooseProfile();
+          return;
+        }
         await boot();
         if (A.profiles().length > 1) chooseProfile();
       });

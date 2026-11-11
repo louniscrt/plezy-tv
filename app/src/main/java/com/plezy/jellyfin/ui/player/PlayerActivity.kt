@@ -7,6 +7,7 @@ import com.google.android.exoplayer2.C
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -146,6 +147,18 @@ class PlayerActivity : AppCompatActivity() {
         }
         @Suppress("UNCHECKED_CAST", "DEPRECATION")
         playlist = (intent.getSerializableExtra("playlist") as? ArrayList<MediaItem>).orEmpty()
+        if (playlist.isEmpty() && mediaItem.seriesId != null) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                runCatching {
+                    val sId = mediaItem.seriesId!!
+                    val bySeason = jellyfinClient.getEpisodesBySeason(sId)
+                    val currentSeasonEpisodes = mediaItem.seasonNumber?.let { bySeason[it] } ?: bySeason.values.flatten()
+                    if (currentSeasonEpisodes.isNotEmpty()) {
+                        withContext(Dispatchers.Main) { playlist = currentSeasonEpisodes }
+                    }
+                }
+            }
+        }
 
         playerView = findViewById(R.id.exoPlayerView)
         playerOverlay = findViewById(R.id.playerOverlay)
@@ -250,6 +263,7 @@ class PlayerActivity : AppCompatActivity() {
         addFocusBounce(btnPrev, 1.12f)
 
         val btnNext = findViewById<View>(R.id.btnNext)
+        btnNext.visibility = View.VISIBLE
         btnNext.setOnClickListener {
             jumpToChapter(next = true)
             showOverlayAndScheduleHide()

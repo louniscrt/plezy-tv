@@ -21,7 +21,8 @@
 <script src="seerr-session.js?v=20261110-v11" defer></script>
 <script src="demo.js" defer></script>
 <script src="resume.js?v=20261110-v11" defer></script>
-<script src="offline.js" defer></script>
+<script src="profiles.js?v=20261111-v1" defer></script>
+<script src="offline.js?v=20261110-v11" defer></script>
 <script src="tv/detail.js?v=20261110-v11" defer></script>
 <script src="tv/resume-motion.js?v=20261110-v11" defer></script>
 <script src="tv/navigation.js?v=20261110-v11" defer></script>
@@ -33,6 +34,23 @@
 <script src="seerr-pairing.js?v=20261110-v11" defer></script>
 </head>
 <body>
+
+<!-- ===================== CHOISIR LE PROFIL (NETFLIX STYLE) ===================== -->
+<section id="screen-profiles" class="screen" hidden>
+  <div class="profiles-brand">
+    <span class="profiles-logo">PLEZY</span>
+  </div>
+  <div class="profiles-container">
+    <h1 class="profiles-title">Qui est-ce ?</h1>
+    <div class="profiles-grid" id="profilesGrid" role="list"></div>
+    <div class="profiles-actions">
+      <button class="btn-manage-profiles" id="btnManageProfiles" type="button">
+        <svg class="manage-pencil" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="lblManageProfiles">Gérer les profils</span>
+      </button>
+    </div>
+  </div>
+</section>
 
 <!-- ===================== CONNEXION ===================== -->
 <section id="screen-login" class="screen" hidden>
@@ -175,7 +193,6 @@
   <div class="player-ui" id="playerUi">
     <div class="p-top">
       <button class="player-icon" id="pBack" title="Retour" aria-label="Retour"><svg viewBox="0 0 24 24"><path d="M20 12H4m8-8-8 8 8 8"/></svg></button>
-          <button class="player-icon" id="pNext" title="Épisode suivant" aria-label="Épisode suivant" hidden><svg viewBox="0 0 24 24"><path d="m4 4 13 8L4 20zM20 4v16"/></svg></button>
       <button class="player-icon" id="pRestart" title="Reprendre depuis le début" aria-label="Reprendre depuis le début"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 0 5M4 4v6h6"/><path d="m10 9 5 3-5 3z"/></svg></button>
         <div class="player-now" aria-live="off"><strong id="pTitle"></strong><span id="pSub"></span></div>
       <span class="p-options-label">OPTIONS</span>
@@ -204,6 +221,7 @@
     <div class="player-bottom">
       <div class="p-timeline">
           <button class="player-icon play-toggle" id="pPlay" title="Lecture / Pause" aria-label="Lecture"><svg viewBox="0 0 24 24" class="fill" id="pPlayIco"><path d="M7 3v18l15-9z"/></svg></button>
+          <button class="player-icon next-toggle" id="pNext" title="Épisode suivant" aria-label="Épisode suivant"><svg viewBox="0 0 24 24"><path d="m4 4 13 8L4 20zM20 4v16"/></svg></button>
         <span id="pCur" class="p-elapsed">0:00</span>
         <div class="p-bar" id="pBar" role="slider" tabindex="0" aria-label="Position de lecture" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0"><div class="p-segs" id="pSegs"></div><div class="p-buf" id="pBuf"></div><div class="p-fill" id="pFill"></div><div class="p-knob" id="pKnob"></div></div>
         <span id="pRem" class="p-remaining">0:00</span>

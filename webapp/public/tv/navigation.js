@@ -43,6 +43,92 @@
     const active = document.activeElement;
     const horizontal = direction === 'ArrowLeft' || direction === 'ArrowRight';
     const sign = direction === 'ArrowLeft' || direction === 'ArrowUp' ? -1 : 1;
+    // 1. Navigation dédiée pour l'écran Choisir le profil
+    if (scope.id === 'screen-profiles') {
+      const grid = active?.closest?.('#profilesGrid');
+      if (horizontal && grid) {
+        const cards = [...grid.querySelectorAll('.profile-card')].filter(usable);
+        const next = cards[cards.indexOf(active) + sign];
+        if (next) { next.focus({preventScroll: true}); return true; }
+      }
+      if (direction === 'ArrowDown' && grid) {
+        const btn = document.getElementById('btnManageProfiles');
+        if (btn && usable(btn)) { btn.focus({preventScroll: true}); return true; }
+      }
+      if (direction === 'ArrowUp' && active?.id === 'btnManageProfiles') {
+        const cards = [...(document.getElementById('profilesGrid')?.querySelectorAll('.profile-card') || [])].filter(usable);
+        if (cards.length) { (cards[2] || cards[0]).focus({preventScroll: true}); return true; }
+      }
+    }
+
+    // 2. Navigation directe et intuitive pour l'écran de détails
+    if (scope.id === 'screen-detail') {
+      if (active?.id === 'dPlay' && direction === 'ArrowDown') {
+        const target = document.querySelector('#episodeRail button, #seasonTabs button, #dSimilarSec button, #dAbout');
+        if (target && usable(target)) {
+          target.focus({preventScroll: true});
+          target.scrollIntoView?.({block: 'nearest', inline: 'nearest', behavior: 'smooth'});
+          return true;
+        }
+      }
+      if (active?.closest?.('#episodeRail,#seasonTabs') && direction === 'ArrowUp') {
+        const play = document.getElementById('dPlay');
+        if (play && usable(play)) {
+          play.focus({preventScroll: true});
+          play.scrollIntoView?.({block: 'nearest', inline: 'nearest', behavior: 'smooth'});
+          return true;
+        }
+      }
+      if (active?.hasAttribute?.('data-back') && direction === 'ArrowDown') {
+        const play = document.getElementById('dPlay');
+        if (play && usable(play)) { play.focus({preventScroll: true}); return true; }
+      }
+    }
+
+    // 3. Navigation fluide et intuitive dans le mode lecteur (Player)
+    if (scope.id === 'screen-player') {
+      const playerUi = document.getElementById('playerUi');
+      const isHidden = playerUi?.classList.contains('hide');
+      if (isHidden) {
+        playerUi?.classList.remove('hide');
+        if (window.PlezyPlayer?.wake) window.PlezyPlayer.wake();
+        if (horizontal) return false; // laisser le seek se faire
+        const play = document.getElementById('pPlay');
+        play?.focus({preventScroll: true});
+        return true;
+      }
+      const pPlay = document.getElementById('pPlay');
+      const pNext = document.getElementById('pNext');
+      const pBar = document.getElementById('pBar');
+      const pBack = document.getElementById('pBack');
+      const pRestart = document.getElementById('pRestart');
+      const pSettings = document.getElementById('pSettings');
+      const pLanguages = [...(document.getElementById('pLanguages')?.querySelectorAll('button') || [])].filter(usable);
+      const bottomRow = [pPlay, ...(pNext && usable(pNext) ? [pNext] : []), ...pLanguages, pSettings].filter(usable);
+
+      if (active === pBar) {
+        if (direction === 'ArrowDown') { pPlay?.focus(); return true; }
+        if (direction === 'ArrowUp') { (pBack || pRestart)?.focus(); return true; }
+        if (horizontal) return false; // laisser seek sur pBar
+      }
+      if (bottomRow.includes(active)) {
+        if (direction === 'ArrowUp') { pBar?.focus(); return true; }
+        if (horizontal) {
+          const idx = bottomRow.indexOf(active);
+          const next = bottomRow[idx + sign];
+          if (next) { next.focus(); return true; }
+        }
+      }
+      if (active === pBack || active === pRestart) {
+        if (direction === 'ArrowDown') { pBar?.focus(); return true; }
+        if (horizontal) {
+          const topRow = [pBack, pRestart].filter(usable);
+          const next = topRow[topRow.indexOf(active) + sign];
+          if (next) { next.focus(); return true; }
+        }
+      }
+    }
+
     const track = active?.closest?.('.row-track');
     if (horizontal && track && scope.contains(active)) {
       const row = [...track.querySelectorAll('button:not(.row-arrow)')].filter(usable);
@@ -99,7 +185,12 @@
       const isPlayer = window.PlezyUI?.screen === 'player' && document.getElementById('modal')?.hidden;
       if (event.key.startsWith('Arrow')) {
         if (input && (tag === 'SELECT' || event.target?.type === 'range' || ['ArrowLeft','ArrowRight'].includes(event.key))) return;
-        if (isPlayer && ['ArrowLeft','ArrowRight'].includes(event.key) && document.getElementById('screen-player')?.dataset?.state !== 'error') return;
+        if (isPlayer && ['ArrowLeft','ArrowRight'].includes(event.key)) {
+          const playerUi = document.getElementById('playerUi');
+          const isHidden = playerUi?.classList.contains('hide');
+          const isBar = document.activeElement?.id === 'pBar';
+          if (isHidden || isBar) return; // laisser le seek se faire
+        }
         if (moveFocus(event.key)) event.preventDefault();
       }
     });

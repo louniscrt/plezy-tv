@@ -101,8 +101,27 @@ html.plezy-cinema #screen-player .player-ui{background:linear-gradient(180deg,#0
 html.plezy-cinema #screen-player[data-state=paused] .player-ui{background:linear-gradient(90deg,#0007,transparent 75%),linear-gradient(0deg,#000d,transparent 65%)}
 html.plezy-cinema #screen-player .p-top{padding:32px var(--player-pad);align-items:center;justify-content:flex-start;gap:20px}
 html.plezy-cinema #screen-player .p-top .player-icon{border:0;background:none;box-shadow:none;border-radius:50%;backdrop-filter:none}
+/* Accélération matérielle et fluidité 60fps */
+html.plezy-cinema .tile,
+html.plezy-cinema .profile-card,
+html.plezy-cinema .detail-episode,
+html.plezy-cinema .btn,
+html.plezy-cinema .player-icon {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+html.plezy-cinema #playerUi {
+  transform: translateZ(0);
+  will-change: opacity;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.plezy-cinema .row-track {
+  contain: content;
+  -webkit-overflow-scrolling: touch;
+}
+
 html.plezy-cinema #screen-player .p-top #pRestart{order:1}
-html.plezy-cinema #screen-player .p-top #pNext{order:2}
 html.plezy-cinema #screen-player .player-now{order:3;margin-left:auto;flex:0 1 auto;display:flex;flex-direction:column;align-items:flex-end;font-size:clamp(17px,1.8vw,29px);gap:4px;max-width:55%}
 html.plezy-cinema #screen-player .player-now span{font-weight:400;font-size:.85em}
 html.plezy-cinema #screen-player #pReport{order:4;width:36px;opacity:.7}
@@ -113,8 +132,21 @@ html.plezy-cinema #screen-player .pause-info h1{max-width:70%;font-size:clamp(42
 html.plezy-cinema #screen-player .pause-logo{max-width:48%;max-height:150px;object-fit:contain;object-position:left}
 html.plezy-cinema #screen-player .pause-info h2{font-size:clamp(18px,1.8vw,28px);font-weight:500;margin:0}
 html.plezy-cinema #screen-player .player-bottom{inset:auto 0 0;border:0;border-radius:0;padding:0 var(--player-pad) max(30px,env(safe-area-inset-bottom));background:none;backdrop-filter:none;box-shadow:none;gap:18px}
-html.plezy-cinema #screen-player .p-timeline{grid-template-columns:64px auto minmax(0,1fr) auto;gap:20px}
-html.plezy-cinema #screen-player .p-timeline .play-toggle{width:62px;height:62px;border-radius:50%;background:#fff;color:#08090d;padding:15px}
+html.plezy-cinema #screen-player .p-timeline{display:flex;align-items:center;gap:18px}
+html.plezy-cinema #screen-player .p-timeline .p-bar{flex:1;min-width:100px}
+html.plezy-cinema #screen-player .p-timeline .play-toggle{width:60px;height:60px;min-width:60px;border-radius:50%;background:#fff;color:#08090d;padding:15px;display:flex;align-items:center;justify-content:center;border:3px solid transparent;transition:transform .2s ease,box-shadow .2s ease}
+html.plezy-cinema #screen-player .p-timeline .play-toggle:hover,
+html.plezy-cinema #screen-player .p-timeline .play-toggle:focus-visible,
+html.plezy-cinema #screen-player .p-timeline .play-toggle.tv-focus{outline:none;border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,0.4),0 0 20px rgba(255,255,255,0.7);transform:scale(1.08)}
+html.plezy-cinema #screen-player .p-timeline .next-toggle{width:48px;height:48px;min-width:48px;border-radius:50%;background:rgba(255,255,255,0.18);color:#fff;border:2px solid transparent;display:flex;align-items:center;justify-content:center;padding:10px;transition:all .2s ease}
+html.plezy-cinema #screen-player .p-timeline .next-toggle svg{width:24px;height:24px}
+html.plezy-cinema #screen-player .p-timeline .next-toggle:hover,
+html.plezy-cinema #screen-player .p-timeline .next-toggle:focus-visible,
+html.plezy-cinema #screen-player .p-timeline .next-toggle.tv-focus{background:#fff;color:#08090d;border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,0.4),0 0 16px rgba(255,255,255,0.6);transform:scale(1.1)}
+html.plezy-cinema #screen-player .p-bar:focus-visible,
+html.plezy-cinema #screen-player .p-bar.tv-focus{outline:none}
+html.plezy-cinema #screen-player .p-bar:focus-visible .p-knob,
+html.plezy-cinema #screen-player .p-bar.tv-focus .p-knob{transform:scale(1.8);background:#00e5ff;box-shadow:0 0 12px #00e5ff}
 html.plezy-cinema #screen-player .play-toggle svg{width:34px;height:34px}
 html.plezy-cinema #screen-player .p-elapsed,html.plezy-cinema #screen-player .p-remaining{font-size:clamp(17px,1.7vw,26px);font-variant-numeric:tabular-nums;min-width:55px}
 html.plezy-cinema #screen-player .p-bar:before,html.plezy-cinema #screen-player .p-fill,html.plezy-cinema #screen-player .p-buf{top:10px;bottom:9px;border-radius:4px}

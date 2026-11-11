@@ -431,7 +431,8 @@
     dismissedNext = false; dismissedIntro = false; introShownAt = 0; prompts.hidden = true; subText.textContent = ''; subContainer.hidden = true;
     item = selected; source = selected.MediaSources?.[0]; audio = undefined; subtitle = -1; bitrate = 0; fallback = false;
     episodeList = episodes; const index = episodes.findIndex(e => e.Id === selected.Id); next = index >= 0 ? episodes[index + 1] : undefined;
-    $('pNext').hidden = !next; $('pEpisodes').hidden = !episodes.length;
+    $('pNext').hidden = !next && selected.Type !== 'Episode' && !(selected.Chapters?.length > 1);
+    $('pEpisodes').hidden = !episodes.length;
     text('pTitle', selected.SeriesName || selected.Name);
     text('pSub', selected.Type === 'Episode' ? `E${selected.IndexNumber}  ${selected.Name}` : selected.demo ? 'Extrait de démonstration' : selected.ProductionYear);
     text('pPauseTitle', selected.SeriesName || selected.Name); text('pPauseSeries', selected.Type === 'Episode' ? selected.SeriesName : '');
@@ -583,7 +584,19 @@
     } catch { toast('Le plein écran est indisponible.'); }
   }
   $('pFull').onclick = fullscreen;
-  $('pNext').onclick = () => next && run(() => start(next, episodeList));
+  $('pNext').onclick = () => {
+    if (next) {
+      run(() => start(next, episodeList));
+      return;
+    }
+    const chapters = item?.Chapters || plan?.chapters || [];
+    if (chapters.length > 1) {
+      const cur = position();
+      const nxt = chapters.find(c => Number(c.StartPositionTicks) / 10000000 > cur + 10);
+      if (nxt) { seek(Number(nxt.StartPositionTicks) / 10000000); return; }
+    }
+    seek(position() + 60);
+  };
   $('pBack').onclick = () => stop();
   $('pPlay').onclick = event => { event.currentTarget.blur(); if (video.paused) run(playVideo); else video.pause(); };
   $('pRew').onclick = () => seek(position() - 10); $('pFwd').onclick = () => seek(position() + 10);
