@@ -305,12 +305,25 @@ function segmentArguments(info,source,start,length,destination,quality=1080,opti
     2160:[2560,7500,9500,19000,192]
   }[quality];
   if(!profile)throw new Error('Qualité invalide');
+  const canCopyVideo = quality >= 1080 &&
+    video.codec_name === 'h264' &&
+    (video.width || 0) <= 1920 &&
+    (video.height || 0) <= 1080 &&
+    (video.pix_fmt || 'yuv420p') === 'yuv420p' &&
+    !['smpte2084','arib-std-b67'].includes(video.color_transfer);
+  if (canCopyVideo) {
+    return ['-hide_banner','-loglevel','error','-nostdin','-y','-ss',String(start),'-rw_timeout','12000000','-probesize','1500000','-analyzeduration','1500000','-fflags','+genpts+discardcorrupt','-i',source,'-t',String(length),
+      '-map','0:'+video.index,'-map','0:'+audio.index,'-sn','-dn',
+      '-c:v','copy',
+      '-c:a','aac','-profile:a','aac_low','-b:a',profile[4]+'k','-ac','2','-ar','48000','-af','aresample=async=1:first_pts=0','-metadata:s:a:0','language='+langCode,
+      '-muxdelay','0','-muxpreload','0','-output_ts_offset',String(start),'-mpegts_flags','+resend_headers','-f','mpegts',destination];
+  }
   const scaling=`scale=w='min(${profile[0]},iw)':h='min(${quality},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:flags=fast_bilinear`;
   const hdr = quality <= 720 && ['smpte2084','arib-std-b67'].includes(video.color_transfer);
   const filters=scaling+(hdr?',zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=mobius:desat=0,zscale=primaries=bt709:transfer=bt709:matrix=bt709:range=limited,format=yuv420p':'');
   const vProfile = quality >= 1080 ? 'high' : 'baseline';
   const vLevel = quality >= 2160 ? '5.1' : quality >= 1080 ? '4.1' : '3.1';
-  const threads = quality >= 1080 ? '0' : '4';
+  const threads = String(Math.max(1, Math.min(4, os.cpus()?.length || 2)));
   return ['-hide_banner','-loglevel','error','-nostdin','-y','-ss',String(start),'-rw_timeout','12000000','-probesize','1500000','-analyzeduration','1500000','-fflags','+genpts+discardcorrupt','-i',source,'-t',String(length),
     '-map','0:'+video.index,'-map','0:'+audio.index,'-sn','-dn',
     '-c:v','libx264','-preset','ultrafast','-tune','zerolatency','-profile:v',vProfile,'-level:v',vLevel,'-pix_fmt','yuv420p',
@@ -325,7 +338,7 @@ async function createSegment(info,source,identity,index,quality=1080,options={})
   if(existing){segmentCache.delete(key);segmentCache.set(key,existing);return existing;}
   const priority=Boolean(options?.priority);
   const promise=(async()=>{
-    const limit=priority?4:2;
+    const limit=priority?3:1;
     if(encoders>=limit){
       if(encoderQueue.length>=24)throw new Error('Serveur occupé');
       await new Promise(resolve=>priority?encoderQueue.unshift(resolve):encoderQueue.push(resolve));
@@ -366,8 +379,8 @@ async function hlsMedia(req,res,ticketId,segmentIndex,identity,quality=1080,mast
       const playlist=master ? masterPlaylist(ticketId,querySuffix) : vodPlaylist(ticketId,duration,quality,querySuffix);
       const warmQ=master ? 1080 : quality;
       if(duration>0){
-        if(encoders<3)createSegment(info,source,identity,0,warmQ,{...options,priority:true}).catch(()=>{});
-        if(encoders<2 && duration>6)createSegment(info,source,identity,1,warmQ,options).catch(()=>{});
+        if(encoders<2)createSegment(info,source,identity,0,warmQ,{...options,priority:true}).catch(()=>{});
+        if(encoders<1 && duration>6)createSegment(info,source,identity,1,warmQ,options).catch(()=>{});
       }
       res.writeHead(200,{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'});
       return res.end(req.method==='HEAD'?undefined:playlist);
@@ -375,10 +388,8 @@ async function hlsMedia(req,res,ticketId,segmentIndex,identity,quality=1080,mast
     const duration=Number(info.format?.duration);
     if(!Number.isSafeInteger(segmentIndex)||segmentIndex<0||segmentIndex*6>=duration){res.writeHead(404);return res.end();}
     const file=await createSegment(info,source,identity,segmentIndex,quality,{...options,priority:true});if(res.destroyed)return;
-    for(let ahead=1;ahead<=2;ahead++){
-      if(encoders<2 && encoderQueue.length===0 && (segmentIndex+ahead)*6<duration){
-        createSegment(info,source,identity,segmentIndex+ahead,quality,options).catch(()=>{});
-      }
+    if(encoders<1 && encoderQueue.length===0 && (segmentIndex+1)*6<duration){
+      createSegment(info,source,identity,segmentIndex+1,quality,options).catch(()=>{});
     }
     const stat=await fs.promises.stat(file);res.writeHead(200,{'Content-Type':'video/mp2t','Content-Length':stat.size,'Cache-Control':'private, max-age=60'});
     if(req.method==='HEAD')return res.end();const stream=fs.createReadStream(file);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);

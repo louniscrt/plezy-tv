@@ -27,6 +27,12 @@ test('Adaptive HLS provides safe 360p/480p/720p variants and a seekable complete
  assert.throws(()=>vodPlaylist('opaque',Infinity));
  const info={streams:[{index:0,codec_type:'video'},{index:1,codec_type:'audio',tags:{language:'fra'}}]};
  for(const q of [360,480,720]){const args=segmentArguments(info,'http://127.0.0.1/media',120,6,'/tmp/segment.ts',q);assert.ok(args.includes('baseline'));assert.ok(args.includes('3.1'));assert.ok(args.includes('yuv420p'));assert.ok(args.includes('aac_low'));assert.ok(args.includes('mpegts'));assert.ok(args.includes('120'));assert.ok(!args.includes('copy'));}
+ const h264Info={streams:[{index:0,codec_type:'video',codec_name:'h264',width:1920,height:1080,pix_fmt:'yuv420p'},{index:1,codec_type:'audio',tags:{language:'fra'}}]};
+ const copyArgs=segmentArguments(h264Info,'http://127.0.0.1/media',0,6,'/tmp/segment.ts',1080);
+ assert.ok(copyArgs.includes('copy'));
+ const hevcInfo={streams:[{index:0,codec_type:'video',codec_name:'hevc',width:1920,height:1080,pix_fmt:'yuv420p'},{index:1,codec_type:'audio',tags:{language:'fra'}}]};
+ const transArgs=segmentArguments(hevcInfo,'http://127.0.0.1/media',0,6,'/tmp/segment.ts',1080);
+ assert.ok(!transArgs.includes('copy'));assert.ok(transArgs.includes('libx264'));
 });
 
 test('HDR transfer functions are tone mapped to SDR for older televisions',()=>{
