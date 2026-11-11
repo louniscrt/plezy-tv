@@ -159,3 +159,39 @@ test('stream indexing filters out camrips, spam, uncached and wrong-year release
   assert.equal(streams[0].url, 'https://cdn.test/multi-vff-1080p');
   assert.equal(streams[1].url, 'https://cdn.test/vfq-4k');
 });
+
+test('resolving tmdb: prefix queries stream addons with resolved IMDb ID and returns streams', async () => {
+  const calls = [];
+  const engine = createStremio({
+    config: {
+      metadataManifest: false,
+      addons: ['https://stream.test/manifest.json'],
+      metadata: { seerrUrl: 'https://seerr.test', seerrApiKey: 'test-key' }
+    },
+    fetchJSON: async (url, headers) => {
+      calls.push(url);
+      if (url.endsWith('manifest.json')) {
+        return {
+          types: ['movie', 'series'],
+          resources: [{ name: 'stream', types: ['movie', 'series'], idPrefixes: ['tt'] }]
+        };
+      }
+      if (url.includes('/api/v1/movie/155')) {
+        return { id: 155, externalIds: { imdbId: 'tt0468569' } };
+      }
+      if (url.includes('/stream/movie/tt0468569.json')) {
+        return {
+          streams: [
+            { url: 'https://cdn.test/dark-knight.mp4', title: 'The.Dark.Knight.2008.1080p.VF.mp4' }
+          ]
+        };
+      }
+      throw new Error('Unexpected URL: ' + url);
+    }
+  });
+
+  const res = await engine.streams(encodeId('movie', 'tmdb:155'), { includeVariants: true });
+  assert.equal(res.streams.length, 1);
+  assert.equal(res.streams[0].url, 'https://cdn.test/dark-knight.mp4');
+  assert.ok(calls.some(c => c.includes('/stream/movie/tt0468569.json')));
+});

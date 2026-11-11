@@ -47,7 +47,12 @@
       stremioIndices.set(item.Id, index);
       if (stremioIndices.size > 200) stremioIndices.delete(stremioIndices.keys().next().value);
       const chosen = candidates[index];
-      if (!chosen) throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
+      if (!chosen) {
+        if (candidates.length === 0) {
+          throw new Error('Aucune source disponible pour ce titre. Il n\'est peut-être pas encore sorti ou disponible sur Real-Debrid.');
+        }
+        throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
+      }
       const useFallback = Boolean(chosen.fallback || force === 'compatible' || wantEnglish);
       const probeParts = ['probe=1', ...(start > 0 ? [`start=${Math.floor(start)}`] : []), ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
       let response = await fetch(`${chosen.url}?${probeParts.join('&')}`, { signal });

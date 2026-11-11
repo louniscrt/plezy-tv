@@ -38,8 +38,10 @@ function parseRuntimeTicks(value) {
 }
 function media(meta, type = meta.type) {
   if (!meta.id || !meta.name || !['movie', 'series'].includes(type)) return null;
+  const imdbId = String(meta.imdb_id || meta.imdbId || (String(meta.id).startsWith('tt') ? meta.id : ''));
+  const tmdbId = String(meta.moviedb_id || meta.tmdb_id || meta.tmdbId || (String(meta.id).startsWith('tmdb:') ? meta.id.slice(5) : ''));
   return { Id: encodeId(type, meta.id), Name: meta.name, Type: type === 'series' ? 'Series' : 'Movie',
-    stremio: true, ProviderIds: { ...(String(meta.id).startsWith('tt') ? { Imdb: meta.id } : {}), ...(meta.moviedb_id ? { Tmdb: String(meta.moviedb_id) } : {}) }, Overview: meta.description || '', ProductionYear: Number(String(meta.releaseInfo || meta.year || '').slice(0, 4)) || undefined,
+    stremio: true, ProviderIds: { ...(imdbId ? { Imdb: imdbId } : {}), ...(tmdbId ? { Tmdb: tmdbId } : {}) }, Overview: meta.description || '', ProductionYear: Number(String(meta.releaseInfo || meta.year || '').slice(0, 4)) || undefined,
     CommunityRating: Number(meta.imdbRating) || undefined, Genres: meta.genres || [],
     RunTimeTicks: parseRuntimeTicks(meta.runtime),
     stremioArt: { Primary: httpUrl(meta.poster)?.href || '', Backdrop: httpUrl(meta.background || meta.poster)?.href || '', Logo: httpUrl(meta.logo)?.href || '' },
@@ -249,11 +251,58 @@ function createStremio({ config, fetchJSON } = {}) {
     }
     return [...new Map([...lists.flat(), ...discovery].map(m => [m.Id, m])).values()].slice(0, Math.min(500, limit));
   }
+  async function resolveImdbId(type, id) {
+    if (!id || typeof id !== 'string') return id;
+    if (id.startsWith('tt') || id.startsWith('kitsu:')) return id;
+
+    let tmdbNum = '';
+    let extra = '';
+    if (id.startsWith('tmdb:')) {
+      const rest = id.slice(5);
+      const parts = rest.split(':');
+      tmdbNum = parts[0];
+      if (parts.length > 1) extra = ':' + parts.slice(1).join(':');
+    } else if (/^\d+/.test(id)) {
+      const parts = id.split(':');
+      tmdbNum = parts[0];
+      if (parts.length > 1) extra = ':' + parts.slice(1).join(':');
+    }
+
+    if (!tmdbNum) return id;
+
+    const cacheKey = 'tmdb2imdb:' + type + ':' + tmdbNum;
+    return cached(cacheKey, 86400000, async () => {
+      try {
+        const seerrType = type === 'series' ? 'tv' : 'movie';
+        const data = await metadataJSON(`${seerrType}/${tmdbNum}`);
+        const imdb = data?.externalIds?.imdbId || data?.externalIds?.imdb_id || data?.imdbId;
+        if (imdb && /^tt\d+$/.test(imdb)) return imdb + extra;
+      } catch { /* Try next fallback */ }
+
+      try {
+        const key = encodeId(type, 'tmdb:' + tmdbNum);
+        const metaRes = await meta(key).catch(() => null);
+        const raw = metaRes?.raw;
+        const imdb = raw?.imdb_id || raw?.imdbId;
+        if (imdb && /^tt\d+$/.test(imdb)) return imdb + extra;
+      } catch { /* Fallback */ }
+
+      return id;
+    });
+  }
   async function meta(key) {
     const { type, id } = decodeId(key);
     const candidates = (await manifests()).filter(a => supports(a.manifest, 'meta', type, id));
     for (const { base } of candidates) {
       try { const data = await cached(base + '/meta/' + key, 60000, () => readJSON(`${base}/meta/${type}/${encodeURIComponent(id)}.json`)); if (data.meta) { const raw = await localize(data.meta, type); return { raw, item: media(raw, type) }; } } catch { /* Try another provider. */ }
+    }
+    if (id.startsWith('tmdb:') || /^\d+$/.test(id)) {
+      try {
+        const imdbId = await resolveImdbId(type, id);
+        if (imdbId && imdbId.startsWith('tt')) {
+          return await meta(encodeId(type, imdbId));
+        }
+      } catch { /* ignore */ }
     }
     throw new Error('Métadonnées indisponibles');
   }
@@ -263,14 +312,16 @@ function createStremio({ config, fetchJSON } = {}) {
     const localizedSeasons = new Map();
     const episodeRuntimes = new Map();
     const tasks = [];
-    if (raw.moviedb_id) {
+    const tmdbShowId = raw.moviedb_id || raw.tmdb_id || (id.startsWith('tmdb:') ? id.slice(5) : null);
+    if (tmdbShowId) {
       tasks.push(parallel([...new Set((raw.videos || []).map(v => v.season).filter(Number.isInteger))], async season => {
-        try { const data = await metadataJSON('tv/' + encodeURIComponent(raw.moviedb_id) + '/season/' + season); if (data) localizedSeasons.set(season, data.episodes || []); } catch { /* Keep available metadata. */ }
+        try { const data = await metadataJSON('tv/' + encodeURIComponent(tmdbShowId) + '/season/' + season); if (data) localizedSeasons.set(season, data.episodes || []); } catch { /* Keep available metadata. */ }
       }));
     }
-    if (config.metadataManifest !== false && !fetchJSON && /^tt\d+$/.test(id)) {
-      tasks.push(cached('tvmaze:' + id, 86400000, async () => {
-        const show = await readJSON('https://api.tvmaze.com/lookup/shows?imdb=' + encodeURIComponent(id));
+    const imdbShowId = raw.imdb_id || raw.imdbId || (/^tt\d+$/.test(id) ? id : null);
+    if (config.metadataManifest !== false && !fetchJSON && imdbShowId) {
+      tasks.push(cached('tvmaze:' + imdbShowId, 86400000, async () => {
+        const show = await readJSON('https://api.tvmaze.com/lookup/shows?imdb=' + encodeURIComponent(imdbShowId));
         if (!show?.id) return [];
         return await readJSON('https://api.tvmaze.com/shows/' + encodeURIComponent(show.id) + '/episodes');
       }).then(list => {
@@ -295,53 +346,58 @@ function createStremio({ config, fetchJSON } = {}) {
     }).sort((a, b) => (a.ParentIndexNumber === 0 ? 9999 : a.ParentIndexNumber) - (b.ParentIndexNumber === 0 ? 9999 : b.ParentIndexNumber) || a.IndexNumber - b.IndexNumber);
   }
   async function streams(key, options = {}) {
-    const { type, id } = decodeId(key);
+    const { type, id: rawId } = decodeId(key);
+    const id = await resolveImdbId(type, rawId);
     let targetYear = options.year;
     if (!targetYear) {
       try {
-        const hit = [...cache.entries()].find(([k]) => k.includes('/meta/' + key));
+        const hit = [...cache.entries()].find(([k]) => k.includes('/meta/' + key) || (rawId !== id && k.includes('/meta/' + encodeId(type, id))));
         if (hit) {
           const val = await Promise.resolve(hit[1].promise).catch(() => null);
           targetYear = Number(val?.item?.ProductionYear || val?.meta?.releaseInfo || val?.meta?.year || 0) || undefined;
         }
       } catch { /* ignore */ }
     }
-    const addons = (await manifests()).filter(a => supports(a.manifest, 'stream', type, id));
-    const lists = await parallel(addons, ({ base }) => cached(base + '/stream/all/' + key, 30000, async () => {
-      const data = await readJSON(`${base}/stream/${type}/${encodeURIComponent(id)}.json`, {}, { timeout: 4500 });
-      return (data.streams || []).filter(s => {
-        if (!httpUrl(s.url) || s.behaviorHints?.notWebReady || /rd\s+download/i.test(s.name || '')) return false;
-        const name = String(s.name || '');
-        const title = String(s.title || '');
-        const fn = String(s.behaviorHints?.filename || '');
-        const all = (name + ' ' + title + ' ' + fn).toLowerCase();
+    const addons = (await manifests()).filter(a => supports(a.manifest, 'stream', type, id) || (rawId !== id && supports(a.manifest, 'stream', type, rawId)));
+    const lists = await parallel(addons, ({ base, manifest }) => {
+      const queryId = supports(manifest, 'stream', type, id) ? id : rawId;
+      const cacheId = rawId !== id ? `${rawId}~${queryId}` : queryId;
+      return cached(base + '/stream/all/' + encodeId(type, cacheId), 30000, async () => {
+        const data = await readJSON(`${base}/stream/${type}/${encodeURIComponent(queryId)}.json`, {}, { timeout: 4500 });
+        return (data.streams || []).filter(s => {
+          if (!httpUrl(s.url) || s.behaviorHints?.notWebReady || /rd\s+download/i.test(s.name || '')) return false;
+          const name = String(s.name || '');
+          const title = String(s.title || '');
+          const fn = String(s.behaviorHints?.filename || '');
+          const all = (name + ' ' + title + ' ' + fn).toLowerCase();
 
-        if (/\[❌\]|\b(?:uncached|not\s*cached|download\s*failed)\b/i.test(name || title)) return false;
-        if (/\b(?:watch\s+.*\s+free|flixmomo|fmovies|123movies)\b/i.test(all) || /\.(?:exe|rar|zip|iso|txt|nfo)$/i.test(fn)) return false;
-        if (/^(?:ncop|nced|sample|trailer)\b/i.test(fn)) return false;
-        if (/\b(?:cam|camrip|hdcam|telesync|hdts|hdtscr|telecine|tc|scr|dvdscr|r5|screener)\b/i.test(all)) return false;
+          if (/\[❌\]|\b(?:uncached|not\s*cached|download\s*failed)\b/i.test(name || title)) return false;
+          if (/\b(?:watch\s+.*\s+free|flixmomo|fmovies|123movies)\b/i.test(all) || /\.(?:exe|rar|zip|iso|txt|nfo)$/i.test(fn)) return false;
+          if (/^(?:ncop|nced|sample|trailer)\b/i.test(fn)) return false;
+          if (/\b(?:cam|camrip|hdcam|telesync|hdts|hdtscr|telecine|tc|scr|dvdscr|r5|screener)\b/i.test(all)) return false;
 
-        if (targetYear && targetYear >= 1900) {
-          const yearMatch = /\b((?:19|20)\d{2})\b/.exec(fn || title);
-          if (yearMatch) {
-            const streamYear = parseInt(yearMatch[1], 10);
-            if (Math.abs(streamYear - targetYear) >= 2) return false;
+          if (targetYear && targetYear >= 1900) {
+            const yearMatch = /\b((?:19|20)\d{2})\b/.exec(fn || title);
+            if (yearMatch) {
+              const streamYear = parseInt(yearMatch[1], 10);
+              if (Math.abs(streamYear - targetYear) >= 2) return false;
+            }
           }
-        }
-        return true;
-      }).map(s => {
-        const headers = {};
-        for (const [name, value] of Object.entries(s.behaviorHints?.proxyHeaders?.request || {})) {
-          if (['user-agent', 'referer', 'origin', 'authorization', 'cookie'].includes(name.toLowerCase()) && typeof value === 'string' && !/[\r\n]/.test(value)) headers[name.toLowerCase()] = value;
-        }
-        const fr = isFrenchStream(s);
-        const en = isEnglishStream(s);
-        const multi = isMultiStream(s);
-        const highRes = isHighResStream(s);
-        const lowRes = isLowResStream(s);
-        return { url: s.url, headers, priority: streamPriority(s), fr, en, multi, highRes, lowRes };
+          return true;
+        }).map(s => {
+          const headers = {};
+          for (const [name, value] of Object.entries(s.behaviorHints?.proxyHeaders?.request || {})) {
+            if (['user-agent', 'referer', 'origin', 'authorization', 'cookie'].includes(name.toLowerCase()) && typeof value === 'string' && !/[\r\n]/.test(value)) headers[name.toLowerCase()] = value;
+          }
+          const fr = isFrenchStream(s);
+          const en = isEnglishStream(s);
+          const multi = isMultiStream(s);
+          const highRes = isHighResStream(s);
+          const lowRes = isLowResStream(s);
+          return { url: s.url, headers, priority: streamPriority(s), fr, en, multi, highRes, lowRes };
+        });
       });
-    }));
+    });
     const allUnique = [...new Map(lists.flat().sort((a, b) => b.priority - a.priority).map(s => [s.url + JSON.stringify(s.headers), s])).values()];
     const hasHighRes = allUnique.some(s => s.highRes);
     const unique = hasHighRes ? allUnique.filter(s => !s.lowRes) : allUnique;
@@ -364,15 +420,20 @@ function createStremio({ config, fetchJSON } = {}) {
     };
   }
   async function subtitles(key) {
-    const { type, id } = decodeId(key);
-    const subAddons = (await manifests()).filter(a => supports(a.manifest, 'subtitles', type, id)).map(a => a.base);
-    if (config.metadataManifest !== false && !subAddons.some(b => b.includes('opensubtitles'))) {
-      subAddons.push('https://opensubtitles-v3.strem.io');
+    const { type, id: rawId } = decodeId(key);
+    const id = await resolveImdbId(type, rawId);
+    const subAddons = (await manifests()).filter(a => supports(a.manifest, 'subtitles', type, id) || (rawId !== id && supports(a.manifest, 'subtitles', type, rawId))).map(a => ({ base: a.base, manifest: a.manifest }));
+    if (config.metadataManifest !== false && !subAddons.some(a => a.base.includes('opensubtitles'))) {
+      subAddons.push({ base: 'https://opensubtitles-v3.strem.io', manifest: { resources: ['subtitles'], types: ['movie', 'series'], idPrefixes: ['tt'] } });
     }
-    const lists = await parallel(subAddons, base => cached(base + '/subtitles/' + key, 300000, async () => {
-      const data = await readJSON(`${base}/subtitles/${type}/${encodeURIComponent(id)}.json`);
-      return (data.subtitles || []).filter(s => httpUrl(s.url) && typeof s.lang === 'string');
-    }));
+    const lists = await parallel(subAddons, ({ base, manifest }) => {
+      const queryId = supports(manifest, 'subtitles', type, id) ? id : rawId;
+      const cacheId = rawId !== id ? `${rawId}~${queryId}` : queryId;
+      return cached(base + '/subtitles/' + encodeId(type, cacheId), 300000, async () => {
+        const data = await readJSON(`${base}/subtitles/${type}/${encodeURIComponent(queryId)}.json`);
+        return (data.subtitles || []).filter(s => httpUrl(s.url) && typeof s.lang === 'string');
+      });
+    });
     const raw = lists.flat();
 
     const isQualitySub = s => !/(cam|telesync|\bts\b|hdts|hdtscr|screener|\bscr\b)/i.test(s.movieReleaseName || s.subtitleFileName || '');
@@ -445,26 +506,28 @@ function createStremio({ config, fetchJSON } = {}) {
     if (!['movie', 'series'].includes(type)) throw new Error('Type invalide');
     if (id?.startsWith('stremio~')) return meta(id);
     if (/^tt\d+$/.test(id || '')) return meta(encodeId(type, id));
-    if (!/^\d+$/.test(String(tmdbId || ''))) throw new Error('Identifiant TMDB absent');
-    const data = await metadataJSON((type === 'series' ? 'tv' : 'movie') + '/' + tmdbId);
+    if (id?.startsWith('tmdb:')) return meta(encodeId(type, id));
+    const targetTmdb = tmdbId || (id && /^\d+$/.test(id) ? id : null);
+    if (!/^\d+$/.test(String(targetTmdb || ''))) throw new Error('Identifiant TMDB absent');
+    const data = await metadataJSON((type === 'series' ? 'tv' : 'movie') + '/' + targetTmdb);
     const imdb = data?.externalIds?.imdbId || data?.externalIds?.imdb_id || data?.imdbId;
-    if (!/^tt\d+$/.test(imdb || '')) throw new Error('Identifiant IMDb indisponible');
-    try {
-      return await meta(encodeId(type, imdb));
-    } catch {
-      const fallbackRaw = {
-        id: imdb,
-        type,
-        moviedb_id: Number(tmdbId),
-        name: data?.title || data?.name || imdb,
-        description: data?.overview || '',
-        releaseInfo: String(data?.releaseDate || data?.firstAirDate || '').slice(0, 4),
-        genres: (data?.genres || []).map(g => g.name).filter(Boolean),
-        poster: data?.posterPath ? 'https://image.tmdb.org/t/p/w500' + data.posterPath : '',
-        background: data?.backdropPath ? 'https://image.tmdb.org/t/p/w1280' + data.backdropPath : ''
-      };
-      return { raw: fallbackRaw, item: media(fallbackRaw, type) };
+    if (imdb && /^tt\d+$/.test(imdb)) {
+      try {
+        return await meta(encodeId(type, imdb));
+      } catch {}
     }
+    const fallbackRaw = {
+      id: imdb || `tmdb:${targetTmdb}`,
+      type,
+      moviedb_id: Number(targetTmdb),
+      name: data?.title || data?.name || imdb || `Titre #${targetTmdb}`,
+      description: data?.overview || '',
+      releaseInfo: String(data?.releaseDate || data?.firstAirDate || '').slice(0, 4),
+      genres: (data?.genres || []).map(g => g.name).filter(Boolean),
+      poster: data?.posterPath ? 'https://image.tmdb.org/t/p/w500' + data.posterPath : '',
+      background: data?.backdropPath ? 'https://image.tmdb.org/t/p/w1280' + data.backdropPath : ''
+    };
+    return { raw: fallbackRaw, item: media(fallbackRaw, type) };
   }
   async function requestMedia({ id, tmdbId, type = 'movie' }) {
     if (!config.metadata?.seerrUrl || !config.metadata?.seerrApiKey) throw Object.assign(new Error('Seerr non configuré'), { status: 503 });
