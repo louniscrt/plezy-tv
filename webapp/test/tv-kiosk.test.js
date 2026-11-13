@@ -54,7 +54,7 @@ test('TV remote normalizes D-pad key codes and maintains focused class', () => {
   const handlers = {}, classes = new Set(), removed = [];
   const card = {
     classList:{add: name=>classes.add(name),remove:name=>{classes.delete(name);removed.push(name);}},
-    closest:()=>card, disabled:false, getClientRects:()=>[{}], click:()=>{card.clicked=true;}
+    closest:selector=>selector.includes('[hidden]') ? null : card, disabled:false, getClientRects:()=>[{}], click:()=>{card.clicked=true;}
   };
   const document = {
     activeElement:card,
