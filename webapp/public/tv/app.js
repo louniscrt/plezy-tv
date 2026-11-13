@@ -362,6 +362,7 @@
     }
     if (item.seerr) return requestTitle(item);
     if (item.Type === 'Series') { await openDetail(item); $('dSeasons').scrollIntoView({ behavior: 'smooth' }); return; }
+    if (window.PlezyPlayback?.tryNativePlayback && await window.PlezyPlayback.tryNativePlayback(item)) return;
     await window.PlezyPlayer.start(item, episodes);
   }
   async function requestTitle(item) {
@@ -806,8 +807,10 @@
     $('loginError').after(profilesButton);
     A.initStremio().then(enabled => {
       C.stremio = enabled; if (enabled) C.demo = false;
-      if (profileRequired) chooseProfile();
+      if (C.kiosk) { profileRequired = false; run(boot); }
+      else if (profileRequired) chooseProfile();
       else if (C.token && C.user || C.demo || enabled) run(boot);
+      else if (C.stremioError) text('loginError', C.stremioError);
     });
   }
   if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});
