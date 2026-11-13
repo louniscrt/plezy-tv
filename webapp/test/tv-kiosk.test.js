@@ -43,6 +43,9 @@ test('TV bridge receives absolute media and French subtitle URLs, with HTML fall
   vm.runInNewContext(source, {window, URL, location:{href:'https://plezy.test/tv/' }});
   assert.equal(await window.PlezyPlayback.tryNativePlayback({Id:'film',Name:'Film',stremio:true}), true);
   assert.deepEqual(calls[0], ['https://plezy.test/api/stremio/media/fixture','Film','https://plezy.test/api/stremio/subtitles/fixture.vtt']);
+  delete window.AndroidBridge.playVideoWithSubtitle;
+  assert.equal(await window.PlezyPlayback.tryNativePlayback({Id:'film',Name:'Film',stremio:true}), true);
+  assert.deepEqual(calls[1], ['https://plezy.test/api/stremio/media/fixture','Film']);
   delete window.AndroidBridge;
   assert.equal(await window.PlezyPlayback.tryNativePlayback({Id:'film',stremio:true}), false);
   window.AndroidBridge = {playVideo: () => {throw new Error('unavailable');}};
