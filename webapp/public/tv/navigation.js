@@ -191,15 +191,21 @@
       const tag = event.target?.tagName || '';
       const input = /INPUT|TEXTAREA|SELECT/.test(tag);
       const isPlayer = window.PlezyUI?.screen === 'player' && document.getElementById('modal')?.hidden;
-      if (event.key.startsWith('Arrow')) {
-        if (input && (tag === 'SELECT' || event.target?.type === 'range' || ['ArrowLeft','ArrowRight'].includes(event.key))) return;
-        if (isPlayer && ['ArrowLeft','ArrowRight'].includes(event.key)) {
+      const direction = ({19:'ArrowUp', 20:'ArrowDown', 21:'ArrowLeft', 22:'ArrowRight'})[event.keyCode] || event.key || '';
+      if (event.keyCode === 23 && event.key !== 'Enter' && !input) {
+        const focused = document.activeElement;
+        if (focused && usable(focused) && typeof focused.click === 'function') { event.preventDefault(); focused.click(); }
+        return;
+      }
+      if (direction.startsWith('Arrow')) {
+        if (input && (tag === 'SELECT' || event.target?.type === 'range' || ['ArrowLeft','ArrowRight'].includes(direction))) return;
+        if (isPlayer && ['ArrowLeft','ArrowRight'].includes(direction)) {
           const playerUi = document.getElementById('playerUi');
           const isHidden = playerUi?.classList.contains('hide');
           const isBar = document.activeElement?.id === 'pBar';
           if (isHidden || isBar) return; // laisser le seek se faire
         }
-        if (moveFocus(event.key)) event.preventDefault();
+        if (moveFocus(direction)) event.preventDefault();
       }
     });
   }
