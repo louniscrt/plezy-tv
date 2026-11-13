@@ -271,7 +271,7 @@ public class MainActivity extends Activity {
                 case KeyEvent.KEYCODE_NUMPAD_ENTER: dpad = "Enter"; break;
             }
             if (dpad != null && (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP)) {
-                KeyEvent original = KeyEvent.obtain(event);
+                KeyEvent original = new KeyEvent(event);
                 String type = event.getAction() == KeyEvent.ACTION_DOWN ? "keydown" : "keyup";
                 String script = "(function(){var e=document.activeElement||document.body;"
                     + "if(e.matches('input,textarea,select,[contenteditable=true]'))return false;"
@@ -281,9 +281,7 @@ public class MainActivity extends Activity {
                     + "if(t==='keydown'&&k==='Enter'&&!ev.defaultPrevented&&e.matches('button,a'))e.click();"
                     + "return true;})()";
                 web.evaluateJavascript(script, handled -> {
-                    try {
-                        if ("false".equals(handled) && !isFinishing() && !isDestroyed() && web != null) web.dispatchKeyEvent(original);
-                    } finally { original.recycle(); }
+                    if ("false".equals(handled) && !isFinishing() && !isDestroyed() && web != null) web.dispatchKeyEvent(original);
                 });
                 return true;
             }
