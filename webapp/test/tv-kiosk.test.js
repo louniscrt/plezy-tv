@@ -72,3 +72,28 @@ test('TV remote normalizes D-pad key codes and maintains focused class', () => {
   handlers.keydown({key:'Unidentified',keyCode:23,target:{tagName:'BUTTON'},preventDefault:()=>{prevented=true;}});
   assert.equal(card.clicked,true); assert.equal(prevented,true);
 });
+
+test('status enables kiosk only after sync and never returns Stremio secrets', async t => {
+  const {createServer} = require('../server');
+  const engine = createStremio({
+    config: {authKey:'fake-private-key',metadataManifest:false,addons:[]},
+    fetchJSON: async () => ({result:{addons:[{transportUrl:'https://addon.test/private-token/manifest.json'}]}})
+  });
+  const server = createServer({stremio:engine});
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/stremio/status');
+  const body = await response.text();
+  assert.deepEqual(JSON.parse(body), {enabled:true,kiosk:true});
+  assert.ok(!body.includes('fake-private-key'));
+  assert.ok(!body.includes('private-token'));
+});
+
+test('failed Stremio sync cannot activate kiosk or discard existing addons', async () => {
+  const engine = createStremio({
+    config:{authKey:'invalid',addons:['https://one.test/manifest.json'],metadataManifest:false},
+    fetchJSON:async () => { throw new Error('login rejected'); }
+  });
+  await assert.rejects(engine.syncAddons());
+  assert.equal(engine.enabled,true);
+});
