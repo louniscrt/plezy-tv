@@ -22,7 +22,7 @@ Le serveur fournit `/proxy` pour les API et flux des services connectés. Les m�
 
 ## Mode kiosque Stremio TV
 
-Pour activer l'ouverture automatique de l'interface TV, configurer côté serveur la variable d'environnement `STREMIO_AUTH_KEY` avec une clé de session Stremio valide. Ne pas placer cette clé dans le dépôt, une URL ou le JavaScript servi au navigateur. Dans Docker Compose, transmettre explicitement cette variable au conteneur depuis une configuration privée.
+Pour activer l'ouverture automatique de l'interface TV, configurer côté serveur la variable d'environnement `STREMIO_AUTH_KEY` avec une clé de session Stremio valide. Ne pas placer cette clé dans le dépôt, une URL ou le JavaScript servi au navigateur. Dans Docker Compose, transmettre explicitement cette variable au conteneur depuis une configuration privée. Alternativement, renseigner le champ `authKey` dans le fichier privé indiqué par `STREMIO_CONFIG_FILE`, puis redémarrer le conteneur.
 
 Au démarrage, le serveur lit la collection de l'utilisateur via l'API Stremio. Les addons HTTPS compatibles sont ajoutés à ceux du fichier privé existant ; la collection est réactualisée à la prochaine ouverture après 30 minutes. En cas d'échec, l'écran de connexion reste accessible et un message est affiché. La clé et les URL d'addons ne sont jamais renvoyées par l'API de statut.
 
