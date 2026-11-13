@@ -169,7 +169,11 @@
         if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Adresse de lecture invalide');
         return url.href;
       };
-      const accepted = bridge.playVideo(toWebUrl(streamUrl), String(item.Name || ''), subtitleUrl ? toWebUrl(subtitleUrl) : '');
+      const media = toWebUrl(streamUrl), title = String(item.Name || '');
+      const subtitle = subtitleUrl ? toWebUrl(subtitleUrl) : '';
+      const accepted = typeof bridge.playVideoWithSubtitle === 'function'
+        ? bridge.playVideoWithSubtitle(media, title, subtitle)
+        : bridge.playVideo(media, title);
       return accepted !== false;
     } catch { return false; }
   }
