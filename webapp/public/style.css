@@ -1,8 +1,8 @@
-@font-face{font-family:Inter;src:url(fonts/inter_regular.ttf);font-weight:400}
-@font-face{font-family:Inter;src:url(fonts/inter_medium.ttf);font-weight:500}
-@font-face{font-family:Inter;src:url(fonts/inter_semibold.ttf);font-weight:600}
-@font-face{font-family:Inter;src:url(fonts/inter_bold.ttf);font-weight:700}
-@font-face{font-family:Inter;src:url(fonts/inter_extrabold.ttf);font-weight:800}
+@font-face{font-family:Inter;src:url(fonts/inter_regular.ttf);font-weight:400;font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/inter_medium.ttf);font-weight:500;font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/inter_semibold.ttf);font-weight:600;font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/inter_bold.ttf);font-weight:700;font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/inter_extrabold.ttf);font-weight:800;font-display:swap}
 :root{--bg:#05070B;--bg1:#07080C;--surface:#12151E;--glass:rgba(34,40,54,.30);--glass-b:rgba(255,255,255,.22);--red:#E50914;--orange:#FF9500;--indigo:#6366F1;--purple:#8B5CF6;--green:#21D07A;--t2:#C4C7D0;--t3:#7E8494;--pill:rgba(255,255,255,.25);--pad:clamp(16px,4vw,56px);--tile:clamp(150px,20vw,300px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--bg);color:#fff;font-family:Inter,system-ui,sans-serif;overflow:hidden}

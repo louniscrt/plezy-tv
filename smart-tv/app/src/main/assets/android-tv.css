@@ -1,0 +1,8 @@
+/* Avoid live background sampling on Android TV while retaining the dark
+   surfaces, gradients and all focus, resume and player transitions. */
+html.plezy-android-tv :is(.glass,.topbar,.btn-grey,.btn-ghost,.search-box input,.login-card,#modal,#modalCard,#toast,.p-round),
+html.plezy-android-tv #screen-detail :is(.detail-overlay,.detail-round,.detail-close),
+html.plezy-android-tv #screen-player :is(.p-top .player-icon,.player-bottom) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}

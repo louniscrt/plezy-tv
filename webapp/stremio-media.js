@@ -176,16 +176,13 @@ function warmProbe(ticketId, identity, options = {}) {
   const fallbackSource = `http://127.0.0.1:${Number(process.env.PORT || 8090)}/api/stremio/media/${ticketId}`;
   const idKey = identity || directUrl || fallbackSource;
   resolveDirectUrl(directUrl || fallbackSource, idKey)
-    .then(async src => {
-      const info = await rawProbe(src, idKey);
-      if (Number(info.format?.duration) > 0 && encoders < 3) {
-        createSegment(info, src, idKey, 0, 1080, { lang: 'fr', allowFallback: true }).catch(() => {});
-      }
-    })
+    // Only warm metadata here: the selected resume position and quality are not
+    // known until the browser probe. Encoding segment zero wastes the startup CPU.
+    .then(src => rawProbe(src, idKey))
     .catch(() => {});
 }
 
-async function browserMedia(req,res,ticketId,{start=0,probeOnly=false,identity,lang='fr',allowFallback=false,upstreamUrl,hasCustomHeaders}={}) {
+async function browserMedia(req,res,ticketId,{start=0,quality=360,probeOnly=false,identity,lang='fr',allowFallback=false,upstreamUrl,hasCustomHeaders}={}) {
   if(!probeOnly && active>=4){res.writeHead(429,{'Retry-After':'2'});return res.end('Plusieurs lectures sont déjà en cours.');}
   if(!probeOnly) active++;
   let child,closed=false;
@@ -200,8 +197,8 @@ async function browserMedia(req,res,ticketId,{start=0,probeOnly=false,identity,l
       const dur=Number(info.format?.duration)||0;
       if(dur>0 && encoders<3){
         const startIdx=Math.max(0,Math.floor((Number(start)||0)/6));
-        createSegment(info,source,identity,startIdx,1080,{lang,allowFallback,priority:true}).catch(()=>{});
-        if((startIdx+1)*6<dur && encoders<2)createSegment(info,source,identity,startIdx+1,1080,{lang,allowFallback}).catch(()=>{});
+        createSegment(info,source,identity,startIdx,quality,{lang,allowFallback,priority:true}).catch(()=>{});
+        if((startIdx+1)*6<dur && encoders<2)createSegment(info,source,identity,startIdx+1,quality,{lang,allowFallback}).catch(()=>{});
       }
       const {fr,en,tracks}=listAudioTracks(info.streams||[]);
       const subTracks = listSubtitleTracks(info.streams || []);
@@ -278,6 +275,27 @@ const os=require('node:os');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const segmentCache=new Map();
+async function isSegmentUsable(file) {
+  let handle;
+  try {
+    handle = await fs.promises.open(file, 'r');
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size < 188 * 3 || stat.size % 188 !== 0) return false;
+    const sample = Buffer.alloc(188 * 3);
+    for (const position of new Set([0, stat.size - sample.length])) {
+      const { bytesRead } = await handle.read(sample, 0, sample.length, position);
+      if (bytesRead !== sample.length) return false;
+      for (let offset = 0; offset < sample.length; offset += 188) {
+        if (sample[offset] !== 0x47 || (sample[offset + 1] & 0x80) || !(sample[offset + 3] & 0x30)) return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (handle) await handle.close().catch(() => {});
+  }
+}
 let segmentDirectory;
 let encoders=0;const encoderQueue=[];
 function vodPlaylist(ticketId,duration,quality=720,querySuffix='') {
@@ -287,46 +305,36 @@ function vodPlaylist(ticketId,duration,quality=720,querySuffix='') {
   lines.push('#EXT-X-ENDLIST');return lines.join('\n')+'\n';
 }
 function masterPlaylist(ticketId,querySuffix='') {
-  return ['#EXTM3U','#EXT-X-VERSION:3',
-    '#EXT-X-STREAM-INF:BANDWIDTH=6000000,AVERAGE-BANDWIDTH=4500000,RESOLUTION=1920x1080,FRAME-RATE=30.000,CODECS="avc1.640028,mp4a.40.2"',`/api/stremio/hls/${ticketId}/quality-1080.m3u8${querySuffix}`,
-    '#EXT-X-STREAM-INF:BANDWIDTH=3300000,AVERAGE-BANDWIDTH=2800000,RESOLUTION=1280x720,FRAME-RATE=30.000,CODECS="avc1.42E01F,mp4a.40.2"',`/api/stremio/hls/${ticketId}/quality-720.m3u8${querySuffix}`,
-    '#EXT-X-STREAM-INF:BANDWIDTH=1700000,AVERAGE-BANDWIDTH=1400000,RESOLUTION=854x480,FRAME-RATE=30.000,CODECS="avc1.42E01F,mp4a.40.2"',`/api/stremio/hls/${ticketId}/quality-480.m3u8${querySuffix}`,
-    '#EXT-X-STREAM-INF:BANDWIDTH=900000,AVERAGE-BANDWIDTH=750000,RESOLUTION=640x360,FRAME-RATE=30.000,CODECS="avc1.42E01F,mp4a.40.2"',`/api/stremio/hls/${ticketId}/quality-360.m3u8${querySuffix}`,''].join('\n');
+  const variants = [[240,420000,330000,426,240],[360,750000,600000,640,360],[480,1700000,1400000,854,480],[720,3300000,2800000,1280,720],[1080,10500000,8500000,1920,1080]];
+  return ['#EXTM3U','#EXT-X-VERSION:3',...variants.flatMap(([quality,peak,average,width,height]) => [
+    `#EXT-X-STREAM-INF:BANDWIDTH=${peak},AVERAGE-BANDWIDTH=${average},RESOLUTION=${width}x${height},FRAME-RATE=30.000,CODECS="${quality >= 1080 ? 'avc1.640029' : 'avc1.42E01F'},mp4a.40.2"`,
+    `/api/stremio/hls/${ticketId}/quality-${quality}.m3u8${querySuffix}`
+  ]),''].join('\n');
 }
 function segmentArguments(info,source,start,length,destination,quality=1080,options={}) {
   const video=info.streams.find(s=>s.codec_type==='video'&&!s.disposition?.attached_pic);
   if(!video)throw new Error('Aucune vidéo');const audio=chooseAudio(info.streams,options);
   const langCode=String(options?.lang||'fr').toLowerCase()==='en'?'eng':'fra';
   const profile = {
-    360:[640,650,800,1600,96],
+    240:[426,250,320,640,48],
+    360:[640,500,600,1200,64],
     480:[854,1200,1500,3000,128],
     720:[1280,2500,3000,6000,128],
-    1080:[1920,4500,6000,12000,192],
-    2160:[2560,7500,9500,19000,192]
+    1080:[1920,8000,10000,20000,192],
+    2160:[3840,14000,18000,36000,192]
   }[quality];
   if(!profile)throw new Error('Qualité invalide');
-  const canCopyVideo = quality >= 1080 &&
-    video.codec_name === 'h264' &&
-    (video.width || 0) <= 1920 &&
-    (video.height || 0) <= 1080 &&
-    (video.pix_fmt || 'yuv420p') === 'yuv420p' &&
-    !['smpte2084','arib-std-b67'].includes(video.color_transfer);
-  if (canCopyVideo) {
-    return ['-hide_banner','-loglevel','error','-nostdin','-y','-ss',String(start),'-rw_timeout','12000000','-probesize','1500000','-analyzeduration','1500000','-fflags','+genpts+discardcorrupt','-i',source,'-t',String(length),
-      '-map','0:'+video.index,'-map','0:'+audio.index,'-sn','-dn',
-      '-c:v','copy',
-      '-c:a','aac','-profile:a','aac_low','-b:a',profile[4]+'k','-ac','2','-ar','48000','-af','aresample=async=1:first_pts=0','-metadata:s:a:0','language='+langCode,
-      '-muxdelay','0','-muxpreload','0','-output_ts_offset',String(start),'-mpegts_flags','+resend_headers','-f','mpegts',destination];
-  }
+  // Independent segments must start at the requested time, even between keyframes.
+  // Copying from the previous keyframe overlaps adjacent six-second segments.
   const scaling=`scale=w='min(${profile[0]},iw)':h='min(${quality},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:flags=fast_bilinear`;
-  const hdr = quality <= 720 && ['smpte2084','arib-std-b67'].includes(video.color_transfer);
+  const hdr = ['smpte2084','arib-std-b67'].includes(video.color_transfer);
   const filters=scaling+(hdr?',zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=mobius:desat=0,zscale=primaries=bt709:transfer=bt709:matrix=bt709:range=limited,format=yuv420p':'');
   const vProfile = quality >= 1080 ? 'high' : 'baseline';
   const vLevel = quality >= 2160 ? '5.1' : quality >= 1080 ? '4.1' : '3.1';
-  const threads = String(Math.max(1, Math.min(4, os.cpus()?.length || 2)));
+  const threads = String(Math.max(1, Math.min(2, os.cpus()?.length || 2)));
   return ['-hide_banner','-loglevel','error','-nostdin','-y','-ss',String(start),'-rw_timeout','12000000','-probesize','1500000','-analyzeduration','1500000','-fflags','+genpts+discardcorrupt','-i',source,'-t',String(length),
     '-map','0:'+video.index,'-map','0:'+audio.index,'-sn','-dn',
-    '-c:v','libx264','-preset','ultrafast','-tune','zerolatency','-profile:v',vProfile,'-level:v',vLevel,'-pix_fmt','yuv420p',
+    '-c:v','libx264','-preset',quality >= 720 ? 'superfast' : 'ultrafast','-tune','zerolatency','-profile:v',vProfile,'-level:v',vLevel,'-pix_fmt','yuv420p',
     '-vf',filters,'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',...(quality <= 720 ? ['-r','30','-g','180','-keyint_min','180'] : ['-g','144','-keyint_min','144']),
     '-sc_threshold','0','-b:v',profile[1]+'k','-maxrate',profile[2]+'k','-bufsize',profile[3]+'k','-threads',threads,
     '-c:a','aac','-profile:a','aac_low','-b:a',profile[4]+'k','-ac','2','-ar','48000','-af','aresample=async=1:first_pts=0','-metadata:s:a:0','language='+langCode,
@@ -335,36 +343,110 @@ function segmentArguments(info,source,start,length,destination,quality=1080,opti
 async function createSegment(info,source,identity,index,quality=1080,options={}) {
   const langKey=String(options?.lang||'fr').toLowerCase()==='en'?'en':'fr';
   const key=identity+':'+langKey+':'+quality+':'+index;const existing=segmentCache.get(key);
-  if(existing){segmentCache.delete(key);segmentCache.set(key,existing);return existing;}
-  const priority=Boolean(options?.priority);
-  const promise=(async()=>{
-    const limit=priority?3:1;
-    if(encoders>=limit){
-      if(encoderQueue.length>=24)throw new Error('Serveur occupé');
-      await new Promise(resolve=>priority?encoderQueue.unshift(resolve):encoderQueue.push(resolve));
+  if(existing){
+    let cachedFile;
+    try { cachedFile = await existing; } catch {
+      if(segmentCache.get(key) === existing) segmentCache.delete(key);
+      throw new Error('Création du segment indisponible');
     }
-    encoders++;
-    let file;
+    if(await isSegmentUsable(cachedFile)) {
+      if(segmentCache.get(key) === existing) {
+        segmentCache.delete(key);segmentCache.set(key,existing);
+      }
+      return cachedFile;
+    }
+    if(segmentCache.get(key) === existing) {
+      segmentCache.delete(key);
+      await fs.promises.unlink(cachedFile).catch(()=>{});
+    }
+    const attempts = options.cacheRepairAttempts || 0;
+    if(attempts >= 1) throw new Error('Segment indisponible après régénération');
+    return createSegment(info,source,identity,index,quality,{...options,cacheRepairAttempts:attempts+1});
+  }
+  const duration=Number(info.format?.duration);
+  if(!Number.isFinite(duration)||index*6>=duration)throw new Error('Segment invalide');
+  const count=Math.min(3,Math.ceil(duration/6)-index);
+  const slots=[];
+  for(let n=index;n<index+count;n++) {
+    const cacheKey=identity+':'+langKey+':'+quality+':'+n;
+    if(segmentCache.has(cacheKey))continue;
+    let resolve,reject;
+    const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    promise.catch(()=>{});
+    const slot={index:n,key:cacheKey,promise,resolve,reject,settled:false};
+    slots.push(slot);segmentCache.set(cacheKey,promise);
+  }
+  const requested=segmentCache.get(key);
+  const priority=Boolean(options?.priority);
+  // Keep one input connection open for three segments instead of probing and
+  // seeking the remote file again every six seconds. Publish only renamed TS files.
+  (async()=>{
+    let acquired=false,child,watcher,timer,prefix,checking=false;
+    const publish=async()=>{
+      if(!prefix||checking)return;
+      checking=true;
+      try{for(const slot of slots){
+        if(slot.settled)continue;
+        const file=prefix+'-'+slot.index+'.ts';
+        if(await isSegmentUsable(file)){slot.settled=true;slot.published=true;slot.resolve(file);}
+      }}finally{checking=false;}
+    };
     try{
-      if(!segmentDirectory)segmentDirectory=await fs.promises.mkdtemp(path.join(os.tmpdir(),'plezy-hls-')).catch(()=>fs.promises.mkdtemp('/dev/shm/plezy-hls-'));
-      file=path.join(segmentDirectory,crypto.randomBytes(16).toString('hex')+'.ts');
-      const duration=Number(info.format?.duration);const start=index*6;
-      if(!Number.isFinite(duration)||start>=duration)throw new Error('Segment invalide');
+      const limit=priority?2:1;
+      if(encoders>=limit){
+        if(encoderQueue.length>=24)throw new Error('Serveur occupé');
+        await new Promise(resolve=>priority?encoderQueue.unshift(resolve):encoderQueue.push(resolve));
+      }
+      encoders++;acquired=true;
+      if(!segmentDirectory)segmentDirectory=fs.promises.mkdtemp(path.join(os.tmpdir(),'plezy-hls-')).catch(()=>fs.promises.mkdtemp('/dev/shm/plezy-hls-'));
+      const directory=await segmentDirectory;
+      prefix=path.join(directory,crypto.randomBytes(16).toString('hex'));
+      const args=batchArguments(info,source,index,Math.min(count*6,duration-index*6),prefix,quality,options);
       await new Promise((resolve,reject)=>{
-        const child=spawn('ffmpeg',segmentArguments(info,source,start,Math.min(6,duration-start),file,quality,options),{stdio:'ignore'});
-        const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Adaptation trop longue'));},35000);
-        child.once('error',()=>{clearTimeout(timer);reject(new Error('Adaptation indisponible'));});
-        child.once('close',code=>{clearTimeout(timer);code===0?resolve():reject(new Error('Source française indisponible'));});
+        child=spawn('ffmpeg',args,{stdio:'ignore'});
+        timer=setTimeout(()=>child.kill('SIGKILL'),60000);
+        watcher=setInterval(()=>publish().catch(()=>{}),100);
+        child.once('error',()=>reject(new Error('Adaptation indisponible')));
+        child.once('close',code=>code===0?resolve():reject(new Error('Adaptation interrompue')));
       });
-      return file;
-    }catch(error){if(file)await fs.promises.unlink(file).catch(()=>{});throw error;}
-    finally{encoders--;encoderQueue.shift()?.();}
-  })().catch(error=>{segmentCache.delete(key);throw error;});
-  segmentCache.set(key,promise);
-  while(segmentCache.size>96){const oldest=segmentCache.keys().next().value;if(oldest===key)break;const file=segmentCache.get(oldest);segmentCache.delete(oldest);file.then(name=>fs.promises.unlink(name).catch(()=>{})).catch(()=>{});}
-  return promise;
+      // A polling callback can still be checking a file at process exit.
+      while(checking)await new Promise(resolve=>setTimeout(resolve,10));
+      await publish();
+      if(slots.some(slot=>!slot.settled))throw new Error('Segment produit invalide');
+    }catch(error){
+      for(const slot of slots)if(!slot.settled){
+        slot.settled=true;
+        if(segmentCache.get(slot.key)===slot.promise)segmentCache.delete(slot.key);
+        slot.reject(error);
+      }
+    }finally{
+      clearInterval(watcher);clearTimeout(timer);
+      if(acquired){encoders--;encoderQueue.shift()?.();}
+      if(prefix){
+        await Promise.all([prefix+'.m3u8',prefix+'.m3u8.tmp',...Array.from({length:count},(_,n)=>prefix+'-'+(index+n)+'.ts.tmp')].map(file=>fs.promises.unlink(file).catch(()=>{})));
+        for(let n=index;n<index+count;n++)if(!slots.some(slot=>slot.index===n&&slot.published))await fs.promises.unlink(prefix+'-'+n+'.ts').catch(()=>{});
+      }
+    }
+  })().catch(()=>{});
+  while(segmentCache.size>96){
+    const oldest=segmentCache.keys().next().value;if(oldest===key)break;
+    const file=segmentCache.get(oldest);segmentCache.delete(oldest);
+    file.then(name=>fs.promises.unlink(name).catch(()=>{})).catch(()=>{});
+  }
+  return requested;
 }
+function batchArguments(info,source,index,length,prefix,quality=720,options={}) {
+  const args=segmentArguments(info,source,index*6,length,prefix+'.ts',quality,options);
+  return args.slice(0,-5).concat([
+    '-force_key_frames','expr:gte(t,n_forced*6)',
+    '-f','hls','-hls_time','6','-hls_list_size','0','-hls_playlist_type','event',
+    '-hls_flags','independent_segments+temp_file','-start_number',String(index),
+    '-hls_segment_filename',prefix+'-%d.ts',prefix+'.m3u8'
+  ]);
+}
+
 async function hlsMedia(req,res,ticketId,segmentIndex,identity,quality=1080,master=false,options={}) {
+  const preparationStarted=Date.now();
   try{
     const directUrl = options.upstreamUrl && /^https:\/\//i.test(options.upstreamUrl) && !options.hasCustomHeaders ? options.upstreamUrl : null;
     const rawSource = directUrl || `http://127.0.0.1:${Number(process.env.PORT||8090)}/api/stremio/media/${ticketId}`;
@@ -377,11 +459,8 @@ async function hlsMedia(req,res,ticketId,segmentIndex,identity,quality=1080,mast
     if(segmentIndex===undefined){
       const duration=Number(info.format?.duration);
       const playlist=master ? masterPlaylist(ticketId,querySuffix) : vodPlaylist(ticketId,duration,quality,querySuffix);
-      const warmQ=master ? 1080 : quality;
-      if(duration>0){
-        if(encoders<2)createSegment(info,source,identity,0,warmQ,{...options,priority:true}).catch(()=>{});
-        if(encoders<1 && duration>6)createSegment(info,source,identity,1,warmQ,options).catch(()=>{});
-      }
+      // The browser probe warms the requested position. A playlist must not
+      // start extra encoders at zero while the user is resuming elsewhere.
       res.writeHead(200,{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'});
       return res.end(req.method==='HEAD'?undefined:playlist);
     }
@@ -391,7 +470,7 @@ async function hlsMedia(req,res,ticketId,segmentIndex,identity,quality=1080,mast
     if(encoders<1 && encoderQueue.length===0 && (segmentIndex+1)*6<duration){
       createSegment(info,source,identity,segmentIndex+1,quality,options).catch(()=>{});
     }
-    const stat=await fs.promises.stat(file);res.writeHead(200,{'Content-Type':'video/mp2t','Content-Length':stat.size,'Cache-Control':'private, max-age=60'});
+    const stat=await fs.promises.stat(file);res.writeHead(200,{'Content-Type':'video/mp2t','Content-Length':stat.size,'Cache-Control':'private, max-age=60','Server-Timing':'plezy;dur='+Math.max(0,Date.now()-preparationStarted)});
     if(req.method==='HEAD')return res.end();const stream=fs.createReadStream(file);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
   }catch{if(!res.destroyed&&!res.headersSent){res.writeHead(422,{'Cache-Control':'no-store'});res.end('Source française indisponible pour cet appareil.');}}
 }
@@ -399,3 +478,6 @@ module.exports.hlsMedia=hlsMedia;
 module.exports.vodPlaylist=vodPlaylist;
 module.exports.segmentArguments=segmentArguments;
 module.exports.masterPlaylist=masterPlaylist;
+
+module.exports.batchArguments=batchArguments;
+module.exports.createSegment=createSegment;

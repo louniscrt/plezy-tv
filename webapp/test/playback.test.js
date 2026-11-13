@@ -58,6 +58,30 @@ test('external stream destinations never receive the Jellyfin access token',()=>
  const fixture=playback({});const url=fixture.api.absolute('https://cdn.example/video.mp4',{PlaySessionId:'session'});assert.equal(url,'https://cdn.example/video.mp4');assert.throws(()=>fixture.api.absolute('file:///private/movie.mp4'));
 });
 
+test('slow-network automatic playback warms the same 240p variant it will use',async()=>{
+ for(const variant of ['', 'tv/']){
+  const urls=[];
+  const api={stremio:async()=>({streams:[{url:'/api/stremio/media/first'}]})};
+  const context={window:{PlezyAPI:api,navigator:{connection:{saveData:true}}},URL,fetch:async url=>{urls.push(url);return {ok:true,json:async()=>({duration:600})};}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/bandwidth.js'),'utf8'),context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'playback.js'),'utf8'),context);
+  const item={Id:'stremio~movie~tt123',stremio:true};
+  await context.window.PlezyPlayback.negotiate(item);assert.match(urls.at(-1),/quality=240/);
+  await context.window.PlezyPlayback.negotiate(item,{bitrate:12000000});assert.match(urls.at(-1),/quality=1080/);
+ }
+});
+
+test('the speed measurement finishes before choosing which quality to prepare',async()=>{
+ for(const variant of ['', 'tv/']){
+  let measured=false;const urls=[];
+  const api={stremio:async()=>({streams:[{url:'/api/stremio/media/first'}]})};
+  const bandwidth={prepare:async()=>{await new Promise(setImmediate);measured=true;},initialQuality:()=>measured?1080:240};
+  const context={window:{PlezyAPI:api,PlezyBandwidth:bandwidth},URL,fetch:async url=>{urls.push(url);return {ok:true,json:async()=>({duration:600})};}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'playback.js'),'utf8'),context);
+  await context.window.PlezyPlayback.negotiate({Id:'stremio~movie~tt123',stremio:true});assert.match(urls.at(-1),/quality=1080/);
+ }
+});
+
 test('Stremio playback uses every available link without contacting Jellyfin',async()=>{
  for (const variant of ['', 'tv/']) {
   const api={stremio:async()=>({streams:[{url:'/api/stremio/media/first',hls:false},{url:'/api/stremio/media/second',hls:false},{url:'/api/stremio/media/third',hls:false}]}),jf:()=>{throw Error('Jellyfin must not be used');}};

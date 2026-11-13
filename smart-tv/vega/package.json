@@ -1,0 +1,45 @@
+{
+  "name": "plezy-smarttv-vega",
+  "version": "1.0.11",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepare:assets": "node prepare.cjs",
+    "test": "node prepare.cjs && node --test test/*.test.cjs",
+    "typecheck": "tsc --noEmit",
+    "start": "react-native start",
+    "build:release": "node prepare.cjs && react-native build-vega --build-type Release --target armv7",
+    "build:debug": "node prepare.cjs && react-native build-vega --build-type Debug --target armv7",
+    "build": "npm run build:release"
+  },
+  "dependencies": {
+    "@amazon-devices/react-native-kepler": "~4.0.0",
+    "@amazon-devices/webview": "~4.0.0",
+    "react": "19.2.0",
+    "react-native": "0.83.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@amazon-devices/kepler-cli-platform": "^0",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native/babel-preset": "0.83.0",
+    "@react-native/metro-config": "0.83.0",
+    "@types/react": "^19.2.0",
+    "typescript": "5.8.3"
+  },
+  "kepler": {
+    "projectType": "application",
+    "appName": "PlezySmartTVVega",
+    "targets": [
+      "tv"
+    ]
+  },
+  "overrides": {
+    "react": "19.2.0",
+    "react-native": "0.83.0"
+  }
+}

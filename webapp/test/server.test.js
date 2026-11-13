@@ -28,6 +28,35 @@ before(async()=>{
 });
 after(async()=>{await Promise.all([new Promise(r=>app.close(r)),new Promise(r=>upstream.close(r))]);});
 const relay = route => base+'/proxy?url='+encodeURIComponent(remote+route);
+test('the network sample is uncached and uncompressed so it measures download speed',async()=>{
+ const response=await fetch(base+'/api/network-test',{headers:{'accept-encoding':'gzip'}});
+ assert.equal(response.status,200);assert.equal(response.headers.get('content-encoding'),'identity');
+ assert.match(response.headers.get('cache-control'),/no-store/);assert.match(response.headers.get('cache-control'),/no-transform/);
+ assert.equal((await response.arrayBuffer()).byteLength,131072);
+ assert.equal((await fetch(base+'/api/network-test',{headers:{'sec-fetch-site':'cross-site'}})).status,403);
+});
+test('text assets use gzip, conditional requests avoid retransfers, and HEAD describes the same representation',async()=>{
+ const plain=await fetch(base+'/player.js',{headers:{'accept-encoding':'identity'}}),source=await plain.text();
+ const compressed=await fetch(base+'/player.js',{headers:{'accept-encoding':'gzip'}});
+ assert.equal(compressed.headers.get('content-encoding'),'gzip');
+ assert.equal(await compressed.text(),source);
+ assert.ok(Number(compressed.headers.get('content-length'))<Buffer.byteLength(source)*.5);
+ const head=await fetch(base+'/player.js',{method:'HEAD',headers:{'accept-encoding':'gzip'}});
+ assert.equal(head.headers.get('content-length'),compressed.headers.get('content-length'));assert.equal(await head.text(),'');
+ const unchanged=await fetch(base+'/player.js',{headers:{'if-none-match':plain.headers.get('etag')}});
+ assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
+ const declined=await fetch(base+'/player.js',{headers:{'accept-encoding':'gzip;q=0'}});
+ assert.equal(declined.headers.get('content-encoding'),null);assert.equal(await declined.text(),source);
+});
+test('large catalogues are compressed while sessions and API responses remain uncached',async()=>{
+ const engine={enabled:true,catalog:async()=>Array.from({length:30},(_,i)=>({Id:String(i),Overview:'long catalogue description '.repeat(30)}))};
+ const server=createServer({stremio:engine}),root=await listen(server);
+ try{
+  const response=await fetch(root+'/api/stremio/catalog',{headers:{'accept-encoding':'gzip'}});
+  assert.equal(response.headers.get('content-encoding'),'gzip');assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal((await response.json()).Items.length,30);
+ }finally{await new Promise(resolve=>server.close(resolve));}
+});
 test('all application scripts, local assets and manifest are served with valid types',async()=>{
  const response=await fetch(base);assert.equal(response.status,200);const html=await response.text();
  for(const match of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
@@ -103,6 +132,7 @@ test('media conversion separates movie and TV ids and handles missing images and
 test('normalization preserves reverse-proxy subpaths and rejects embedded credentials',()=>{
  const api=apiContext();assert.equal(api.normalize('media.local:8096/jellyfin/web/index.html'),'http://media.local:8096/jellyfin');assert.throws(()=>api.normalize('http://user:password@localhost'));assert.throws(()=>api.normalize(''));
 });
+
 
 test('mock Jellyfin endpoints support TV app login and info without hard drives', async () => {
  const srv = createServer({ stremio: { enabled: true } });

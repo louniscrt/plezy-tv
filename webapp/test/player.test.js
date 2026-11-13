@@ -21,14 +21,110 @@ function fixture(negotiate,variant='',options={}){
  const video=$('video');Object.assign(video,{paused:true,currentTime:0,duration:734,volume:1,buffered:{length:0},canPlayType:options.canPlayType||(()=> 'probably'),load(){},play:async function(){this.paused=false;this.onplay?.();this.onplaying?.();},pause(){this.paused=true;this.onpause?.();}});
  let currentScreen='detail';
  const ui={$,action:(label,callback)=>Object.assign(new Node(),{label,callback}),text:(id,v)=>$(id).textContent=v||'',toast(){},run:async fn=>fn(),el:()=>new Node(),show:s=>{currentScreen=s;},navigate(){},modal(){},closeModal(){},get screen(){return currentScreen;}};
- const api={config:{server:'http://server',token:'test',user:'u'},image:()=>'',device:'device',jf:async()=>({}),details:async item=>item,proxy:url=>'/proxy?url='+encodeURIComponent(url),endpoint:(base,route)=>base+route};
- const context={window:{PlezyAPI:api,PlezyUI:ui,PlezyPlayback:{negotiate},Hls:options.Hls,MutationObserver:Observer,addEventListener(){}},Hls:options.Hls,MutationObserver:Observer,document:{head:new Node(),getElementById:$,querySelectorAll:()=>artwork,addEventListener(){},activeElement:null,fullscreenElement:null},console:{info(){},warn(){}},setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){},AbortController,AbortSignal,matchMedia:()=>({matches:false}),Date,URL};
+ const api={config:{server:'http://server',token:'test',user:'u'},image:()=>'',device:'device',jf:async()=>({}),details:async item=>item,proxy:url=>/^\/api\/stremio\/(media|hls)\//.test(url)?url:'/proxy?url='+encodeURIComponent(url),endpoint:(base,route)=>base+route};
+ const context={window:{PlezyAPI:api,PlezyUI:ui,PlezyPlayback:{negotiate},PlezyBandwidth:options.bandwidth,Hls:options.Hls,MutationObserver:Observer,addEventListener(){}},Hls:options.Hls,MutationObserver:Observer,document:{head:new Node(),getElementById:$,querySelectorAll:()=>artwork,addEventListener(){},activeElement:null,fullscreenElement:null},console:{info(){},warn(){}},setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){},AbortController,AbortSignal,matchMedia:()=>({matches:false}),Date,URL};
  const events=[];context.Event=Event;context.window.dispatchEvent=event=>events.push(event.type);
  if(options.jf)api.jf=options.jf;
  if(options.resume)context.window.PlezyResume=options.resume;
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/'+variant+'player.js'),'utf8'),context);
  return {player:context.window.PlezyPlayer,video,$,ui,tick,artwork,events,document:context.document,setModal:hidden=>{$('modal').hidden=hidden;observers.get($('modal'))?.();}};
 }
+
+test('Web and TV let HLS retry transient server failures without stopping playback',async()=>{
+ for(const variant of ['', 'tv/']){
+  let engine;
+  class Hls{
+   static isSupported(){return true;}
+   static Events={MANIFEST_PARSED:'manifest',FRAG_BUFFERED:'fragment',ERROR:'error'};
+   static ErrorTypes={NETWORK_ERROR:'network',MEDIA_ERROR:'media'};
+   constructor(){engine=this;this.handlers={};this.stops=0;this.restarts=0;}
+   on(event,fn){this.handlers[event]=fn;}attachMedia(){}loadSource(){}destroy(){}
+   stopLoad(){this.stops++;}startLoad(){this.restarts++;}
+  }
+  const f=fixture(async()=>({url:'/master.m3u8',hls:true,method:'DirectPlay',source:{Id:'s'}}),variant,{Hls,canPlayType:()=>''});
+  await f.player.start({Id:'film',Name:'Film'});await f.video.onloadedmetadata();
+  engine.handlers.error(null,{fatal:false,type:'network',response:{code:503}});
+  assert.equal(engine.stops,0);assert.equal(f.$('screen-player').dataset.state,'playing');
+  engine.handlers.error(null,{fatal:true,type:'network',response:{code:503}});
+  f.tick(1000);assert.equal(engine.restarts,1);assert.equal(engine.stops,0);
+  f.video.currentTime=60;f.$('pRew').onclick();assert.equal(f.video.currentTime,50);
+  f.player.stop();
+ }
+});
+
+test('TV native HLS with metadata but no playing frame switches to MSE after twelve seconds',async()=>{
+ const engines=[],requests=[];
+ class Hls{
+  static isSupported(){return true;}static Events={MANIFEST_PARSED:'manifest',FRAG_BUFFERED:'fragment',ERROR:'error'};
+  constructor(){engines.push(this);}on(){}attachMedia(){}loadSource(){}destroy(){}
+ }
+ const f=fixture(async(item,opts)=>{requests.push(opts);return {url:'/api/stremio/hls/ticket/master.m3u8',hls:true,duration:600,source:{Id:'s'}};},'tv/',{Hls});
+ f.video.play=async function(){this.paused=false;this.onplay?.();};
+ await f.player.start({Id:'film',Name:'Film',MediaSources:[{Id:'s'}]});await f.video.onloadedmetadata();
+ assert.equal(engines.length,0);
+ f.tick(11999);assert.equal(requests.length,1);
+ f.tick(1);await new Promise(setImmediate);
+ assert.equal(engines.length,1);assert.equal(requests.at(-1).force,false);f.player.stop();
+});
+
+test('Seeking a Stremio timeline before metadata is ready keeps the selected source',async()=>{
+ for(const variant of ['', 'tv/']){
+  const requests=[];
+  const f=fixture(async(item,opts)=>{requests.push(opts);return {url:'/master.m3u8',hls:true,duration:600,source:{Id:'s'}};},variant);
+  await f.player.start({Id:'film',Name:'Film',stremio:true});
+  f.video.duration=Infinity;f.video.currentTime=120;
+  f.$('pRew').onclick();await new Promise(setImmediate);
+  assert.equal(requests.at(-1).force,'seek');assert.equal(requests.at(-1).start,110);f.player.stop();
+ }
+});
+
+test('Web and TV automatic Stremio playback uses adaptive variants while manual quality stays fixed',async()=>{
+ for(const variant of ['', 'tv/']){
+  const engines=[];
+  class Hls{
+   static isSupported(){return true;}static Events={MANIFEST_PARSED:'manifest',FRAG_BUFFERED:'fragment',ERROR:'error'};
+   constructor(config){this.config=config;engines.push(this);}on(){}attachMedia(){}loadSource(url){this.url=url;this.autoLevelCapping=-1;}destroy(){}
+  }
+  const f=fixture(async()=>({url:'/api/stremio/hls/ticket/master.m3u8',hls:true,duration:600,source:{Id:'s'}}),variant,{Hls,canPlayType:()=>''});
+  await f.player.start({Id:'film',Name:'Film',stremio:true});
+  assert.match(engines[0].url,/master\.m3u8/);assert.equal(engines[0].config.startLevel,3);assert.equal(engines[0].autoLevelCapping,-1);
+  let choices;f.ui.modal=(title,buttons)=>choices=buttons;f.$('pQuality').onclick();
+  await choices.find(b=>b.label.startsWith('1080p · 12')).callback();
+  assert.match(engines.at(-1).url,/quality-1080\.m3u8/);assert.equal(engines.at(-1).config.startLevel,0);assert.equal(engines.at(-1).autoLevelCapping,-1);f.player.stop();
+ }
+});
+
+test('fast automatic playback starts at 1080p and does not retain the former 720p cap',async()=>{
+ for(const variant of ['', 'tv/']){
+  let engine;
+  class Hls{
+   static isSupported(){return true;}static Events={MANIFEST_PARSED:'manifest',FRAG_BUFFERED:'fragment',ERROR:'error'};
+   constructor(config){engine=this;this.config=config;}on(){}attachMedia(){}loadSource(){this.autoLevelCapping=-1;}destroy(){}
+  }
+  const bandwidth={preference:()=>0,initialQuality:()=>1080,autoCap:()=>-1,initialBandwidth:()=>50000000};
+  const f=fixture(async()=>({url:'/api/stremio/hls/ticket/master.m3u8',hls:true,duration:600,source:{Id:'s'}}),variant,{Hls,bandwidth,canPlayType:()=>''});
+  await f.player.start({Id:'film',Name:'Film',stremio:true});
+  assert.equal(engine.config.startLevel,4);assert.equal(engine.autoLevelCapping,-1);assert.equal(engine.config.abrEwmaDefaultEstimate,50000000);f.player.stop();
+ }
+});
+
+test('the data saver selection survives the next movie on Web and TV',async()=>{
+ for(const variant of ['', 'tv/']){
+  let saved=0;const requests=[],engines=[];
+  class Hls{
+   static isSupported(){return true;}static Events={MANIFEST_PARSED:'manifest',FRAG_BUFFERED:'fragment',ERROR:'error'};
+   constructor(){engines.push(this);}on(){}attachMedia(){}loadSource(url){this.url=url;this.autoLevelCapping=-1;}destroy(){}
+  }
+  const bandwidth={preference:()=>saved,save:value=>saved=value,initialQuality:value=>value===400000?240:360,autoCap:()=>1};
+  const f=fixture(async(item,opts)=>{requests.push(opts);return {url:'/api/stremio/hls/ticket/master.m3u8',hls:true,duration:600,source:{Id:'s'}};},variant,{Hls,bandwidth,canPlayType:()=>''});
+  await f.player.start({Id:'one',Name:'One',stremio:true});assert.equal(engines[0].autoLevelCapping,1);
+  let choices;f.ui.modal=(title,buttons)=>choices=buttons;f.$('pQuality').onclick();
+  await choices.find(b=>b.label.startsWith('Économie de données')).callback();
+  assert.equal(saved,400000);assert.match(engines.at(-1).url,/quality-240\.m3u8/);
+  await f.player.start({Id:'two',Name:'Two',stremio:true});
+  assert.equal(requests.at(-1).bitrate,400000);assert.match(engines.at(-1).url,/quality-240\.m3u8/);f.player.stop();
+ }
+});
 
 test('Web and TV refresh resume only after Jellyfin acknowledges the stopped position',async()=>{
  for(const variant of ['', 'tv/']){
@@ -50,7 +146,7 @@ test('TV native HLS avoids a duplicate JS buffer and falls back once to a bounde
  assert.equal(instances.length,0);assert.match(f.video.src,/master/);
  f.video.onerror();await new Promise(setImmediate);
  assert.equal(instances.length,1);assert.equal(requests.at(-1).force,false);
- assert.equal(instances[0].config.backBufferLength,0);assert.ok(instances[0].config.maxBufferSize<=24000000);assert.ok(instances[0].config.maxBufferLength<=12);
+ assert.equal(instances[0].config.backBufferLength,30);assert.ok(instances[0].config.maxBufferSize<=48000000);assert.ok(instances[0].config.maxBufferLength<=30);
  f.video.onerror();await new Promise(setImmediate);assert.equal(instances.length,1);assert.equal(f.$('screen-player').dataset.state,'error');f.player.stop();
 });
 

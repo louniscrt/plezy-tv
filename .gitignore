@@ -1,50 +1,62 @@
-# Build & Gradle
+# Android / Gradle and local IDE settings
 *.iml
-.gradle
-/local.properties
+.gradle/
+.gradle-home/
+.idea/
 local.properties
-/.idea
+**/build/
+.externalNativeBuild/
+.cxx/
 .DS_Store
-/build
-app/build
-/captures
-.externalNativeBuild
-.cxx
 /.build-cache/
+/captures/
 /deliverables/
+/smart-tv/dist/
+*.apk
+*.vpkg
+!/PlezyTV-FireOS-API22.apk
 
-# Logs & Environment
-*.log
+# JavaScript dependencies and generated Vega resources
+node_modules/
+buildinfo.json
+/smart-tv/vega/src/injection.json
+/smart-tv/vega/assets/banner.png
+/smart-tv/vega/assets/image/icon.png
+/smart-tv/vega/assets/qrcode.LICENSE.txt
 
-# Personal device backups & dumps
-backup-firetv/
-
-# Temporary diagnostic scripts & scratch files
-check_*.sh
-check_*.js
-test_*.js
-*.py
-server.js
-src_App.tsx
-ressources/
-
-# Experimental Vega OS & webapp
-PlezyTV-VegaOS.vpkg
-PlezyTV-VegaOS/
-sideload-vega.*
-smart-tv/
-plezytv_armv7/
-
-
-# Private Stremio manifests may contain account tokens
+# Private runtime configuration and signing material
 **/stremio.json
 **/stremio.local.json
 **/.env
 **/.env.*
+**/.npmrc
 !**/.env.example
-!tools/configure-stremio.py
-webapp/node_modules/
+*.jks
+*.keystore
+*.p12
+*.key
+*.pem
 
-# Plezy Web server entry point (the root server.js pattern above targets scratch files only)
-!webapp/server.js
+# Logs, caches, diagnostics and local backups
+*.log
+__pycache__/
+*.pyc
 .tmp/
+*.bak
+*.bak-*
+*.before-*
+*.tar.gz
+*.zip
+/backup-firetv/
+/ressources/
+/src_App.tsx
+/check_*.sh
+/check_*.js
+/test_*.js
+/server.js
+
+# Obsolete standalone Vega experiments
+/PlezyTV-VegaOS.vpkg
+/PlezyTV-VegaOS/
+/plezytv_armv7/
+/sideload-vega.*

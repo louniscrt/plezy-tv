@@ -384,7 +384,7 @@
           if (wanted) tracks.forEach(t => { t.enabled = t === wanted; });
         }
         if (version !== loadGeneration || item !== active) return;
-        clearTimeout(startupTimer); switching = false;
+        switching = false;
         if (desiredStart > offset) {
           const mediaStart = desiredStart - offset;
           video.currentTime = Math.min(mediaStart, Number.isFinite(video.duration) ? Math.max(0, video.duration - .1) : mediaStart);
@@ -392,13 +392,14 @@
         video.playbackRate = selectedSpeed;
         updateTimeline(); playVideo();
       };
-      const wantedHeight = bitrate >= 18000000 ? 2160 : bitrate > 0 && bitrate <= 2000000 ? 480 : bitrate > 0 && bitrate <= 5000000 ? 720 : 1080;
+      const wantedHeight = window.PlezyBandwidth?.initialQuality(bitrate) || (bitrate > 0 && bitrate <= 500000 ? 240 : bitrate > 0 && bitrate <= 1000000 ? 360 : bitrate >= 18000000 ? 2160 : bitrate > 0 && bitrate <= 2000000 ? 480 : bitrate > 0 && bitrate <= 5000000 ? 720 : bitrate > 0 ? 1080 : 720);
       const rawUrl = active.offline ? plan.url : A.proxy(plan.url);
-      const url = active.stremio && plan.hls ? rawUrl.replace('/master.m3u8', `/quality-${wantedHeight}.m3u8`) : rawUrl;
-      // Le lecteur natif de la TV évite le tampon et le transmuxage JS en double pour Jellyfin.
-      // En revanche, pour Stremio et si le moteur natif échoue, HLS.js garantit un démarrage immédiat.
+      const url = active.stremio && plan.hls && bitrate > 0 ? rawUrl.replace('/master.m3u8', `/quality-${wantedHeight}.m3u8`) : rawUrl;
+      // Le lecteur natif de la TV évite le tampon et le transmuxage JS en double.
+      // HLS.js reste disponible si le moteur natif échoue ou n'est pas annoncé.
       if (plan.hls && (preferMse || !nativeHls() || active.stremio) && window.Hls?.isSupported()) {
-        hls = new Hls({ startPosition: Math.max(0, desiredStart - offset), startLevel: 0, capLevelToPlayerSize: false, maxBufferLength: 12, maxMaxBufferLength: 24, maxBufferSize: 24*1000*1000, backBufferLength: 0, lowLatencyMode: false, manifestLoadingTimeOut: 10000, fragLoadingTimeOut: 15000 });
+        const mediaAbr = active.stremio ? window.PlezyBandwidth?.abrController?.(Hls) : undefined;
+        hls = new Hls({ ...(mediaAbr ? { abrController:mediaAbr } : {}), startPosition: Math.max(0, desiredStart - offset), startLevel: active.stremio && !bitrate ? [240,360,480,720,1080].indexOf(wantedHeight) : 0, abrEwmaDefaultEstimate: window.PlezyBandwidth?.initialBandwidth?.() || 15000000, abrBandWidthFactor: 0.9, abrBandWidthUpFactor: 0.8, capLevelToPlayerSize: false, maxBufferLength: 30, maxMaxBufferLength: 60, maxBufferSize: 48*1000*1000, backBufferLength: 30, lowLatencyMode: false, manifestLoadingTimeOut: 25000, fragLoadingTimeOut: 45000 });
         hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
           console.info('Plezy manifeste ' + JSON.stringify({ levels: data.levels?.length }));
         });
@@ -415,11 +416,11 @@
             const engine = hls;
             const delay = 1000 * ++networkRecoveries;
             setTimeout(() => {
-              if (version === loadGeneration && hls === engine && state !== 'error') engine.startLoad();
+              if (version === loadGeneration && hls === engine && state !== 'error') engine.startLoad(Math.max(0, position() - offset));
             }, delay);
             return;
           }
-          if (status >= 500 && !diagnosing) {
+          if (data.fatal && status >= 500 && !active.stremio && !diagnosing) {
             diagnosing = true; hls.stopLoad();
             diagnoseStream(version, status); return;
           }
@@ -429,24 +430,21 @@
           fail(status === 401 || status === 403 ? 'Jellyfin refuse l’accès au flux vidéo. Vérifiez les droits de lecture de votre compte.' : status ? `Jellyfin ne fournit pas le flux vidéo (HTTP ${status}). Essayez une autre qualité.` : 'Le flux HLS ne peut pas être lu. Essayez une autre qualité ou vérifiez le transcodage Jellyfin.');
         });
         hlsRecovered = false; hls.attachMedia(video); hls.loadSource(url);
+        // loadSource resets the cap, so apply it afterward. Automatic playback may reach 1080p; the data-saving option remains explicit.
+        hls.autoLevelCapping = active.stremio && !bitrate ? window.PlezyBandwidth?.autoCap() ?? -1 : -1;
       } else if (plan.hls && !video.canPlayType('application/vnd.apple.mpegurl')) {
         throw new Error('Ce navigateur ne prend pas en charge la lecture HLS. Utilisez une version récente de Safari, Chrome, Edge ou Firefox.');
       } else video.src = url;
       switching = false;
       startupTimer = setTimeout(() => {
-        if (version === loadGeneration && state === 'loading') {
-          if (plan?.hls && !hls && !preferMse && window.Hls?.isSupported()) {
-            preferMse = true;
-            run(() => load(desiredStart, false));
-            return;
-          }
-          if (active.stremio && plan?.hasMore) {
-            recover('La préparation du flux vidéo prend trop de temps. Essai d’une autre source…');
-            return;
-          }
-          fail('La préparation de la vidéo prend trop de temps. Vérifiez le transcodage Jellyfin, puis réessayez.');
+        if (version !== loadGeneration || started || ['paused','error','idle'].includes(state)) return;
+        if (plan?.hls && !hls && !preferMse && window.Hls?.isSupported()) {
+          preferMse = true;
+          run(() => load(desiredStart, active.stremio ? 'seek' : false));
+          return;
         }
-      }, 12000);
+        fail('La préparation de la vidéo prend trop de temps. Essayez une autre qualité ou source.');
+      }, plan.hls && !hls && window.Hls?.isSupported() ? 12000 : 45000);
     } catch (error) {
       if (version !== loadGeneration || error.name === 'AbortError') return;
       switching = false;
@@ -470,7 +468,7 @@
     const version = ++generation;
     returnScreen = originalScreen === 'main' ? 'main' : 'detail';
     dismissedNext = false; dismissedIntro = false; introShownAt = 0; prompts.hidden = true; subText.textContent = ''; subContainer.hidden = true;
-    item = selected; source = selected.MediaSources?.[0]; audio = undefined; subtitle = -1; bitrate = 0; fallback = false; preferMse=false;
+    item = selected; source = selected.MediaSources?.[0]; audio = undefined; subtitle = -1; bitrate = window.PlezyBandwidth?.preference() || 0; fallback = false; preferMse=false;
     parkArtwork();
     episodeList = episodes; const index = episodes.findIndex(e => e.Id === selected.Id); next = index >= 0 ? episodes[index + 1] : undefined;
     $('pNext').hidden = !next && selected.Type !== 'Episode' && !(selected.Chapters?.length > 1);
@@ -519,7 +517,7 @@
     if (!item || !duration()) return;
     const at = Math.max(0, Math.min(duration() - .1, target));
     if (plan?.remux) run(() => load(at, 'seek'));
-    else if (plan?.hls && (at < offset || !Number.isFinite(video.duration) || at - offset > video.duration)) run(() => load(at, false));
+    else if (plan?.hls && (at < offset || !Number.isFinite(video.duration) || at - offset > video.duration)) run(() => load(at, item.stremio ? 'seek' : false));
     else { desiredStart = at; video.currentTime = Math.max(0, at - offset); }
     wake();
   }
@@ -613,7 +611,7 @@
   };
   $('pQuality').onclick = () => {
     if (item?.demo || item?.offline) return toast('La qualité est fixe pour ce fichier.');
-    choose('Qualité vidéo', [['Automatique (1080p / 4K)', 0], ['4K UHD · 20 Mb/s', 20000000], ['1080p · 12 Mb/s', 12000000], ['1080p · 8 Mb/s', 8000000], ['720p · 4 Mb/s', 4000000], ['480p · 1,5 Mb/s', 1500000]], bitrate, async value => { const at = Math.max(desiredStart, position()); bitrate = value; await load(at, item?.stremio ? false : value > 0); });
+    choose('Qualité vidéo', [['Automatique (selon la connexion)', 0], ['4K UHD · 20 Mb/s', 20000000], ['1080p · 12 Mb/s', 12000000], ['1080p · 8 Mb/s', 8000000], ['720p · 4 Mb/s', 4000000], ['480p · 1,5 Mb/s', 1500000], ['360p · 0,7 Mb/s', 800000], ['Économie de données · 240p', 400000]], bitrate, async value => { const at = Math.max(desiredStart, position()); bitrate = value; window.PlezyBandwidth?.save(value); await load(at, item?.stremio ? 'seek' : value > 0); });
   };
   $('pChapters').onclick = () => {
     const chapters = item?.Chapters || plan?.chapters || []; if (!chapters.length) return toast('Aucun chapitre disponible.');

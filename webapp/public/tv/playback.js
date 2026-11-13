@@ -28,7 +28,7 @@
   async function negotiate(item, { force = false, start = 0, audio, subtitle = -1, bitrate = 0, mp4 = true, webm = true, hevc = false, signal } = {}) {
     if (item.stremio) {
       const year = item.ProductionYear || (item.releaseDate ? Number(item.releaseDate.slice(0, 4)) : undefined);
-      const result = await A.stremio('streams', { id: item.Id, ...(year ? { year } : {}) }, signal);
+      const [result] = await Promise.all([A.stremio('streams', { id: item.Id, ...(year ? { year } : {}) }, signal), !bitrate ? window.PlezyBandwidth?.prepare?.(signal) : undefined]);
       const wantEnglish = audio === 2;
       const primary = result.streams || [];
       const fallback = (result.fallbackStreams || []).map(s => ({ ...s, fallback: true }));
@@ -50,13 +50,11 @@
       const chosen = candidates[index];
       if (!chosen) {
         stremioIndices.delete(item.Id);
-        if (candidates.length === 0) {
-          throw new Error('Aucune source disponible pour ce titre. Il n\'est peut-être pas encore sorti ou disponible sur Real-Debrid.');
-        }
         throw new Error('Aucun autre lien de lecture disponible. Vérifiez vos addons Real-Debrid.');
       }
       const useFallback = Boolean(chosen.fallback || force === 'compatible' || wantEnglish);
-      const probeParts = ['probe=1', ...(start > 0 ? [`start=${Math.floor(start)}`] : []), ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
+      const probeQuality = window.PlezyBandwidth?.initialQuality(bitrate) || (bitrate > 0 && bitrate <= 500000 ? 240 : bitrate > 0 && bitrate <= 1000000 ? 360 : bitrate > 0 && bitrate <= 2000000 ? 480 : bitrate > 5000000 ? bitrate >= 18000000 ? 2160 : 1080 : 720);
+      const probeParts = ['probe=1', `quality=${probeQuality}`, ...(start > 0 ? [`start=${Math.floor(start)}`] : []), ...(wantEnglish ? ['lang=en'] : []), ...(useFallback ? ['fallback=1'] : [])];
       let response = await fetch(`${chosen.url}?${probeParts.join('&')}`, { signal });
       let forcedCompatible = false;
       if (!response.ok) {

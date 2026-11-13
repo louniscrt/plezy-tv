@@ -1,0 +1,6 @@
+.gradle/
+.gradle-home/
+.tmp/
+local.properties
+app/build/
+preview/

@@ -1,0 +1,9 @@
+services:
+  plezy-web:
+    environment:
+      STREMIO_CONFIG_FILE: /run/secrets/stremio.json
+    volumes:
+      - type: bind
+        source: ${PLEZY_STREMIO_CONFIG:?Définir le chemin absolu du fichier Stremio privé}
+        target: /run/secrets/stremio.json
+        read_only: true

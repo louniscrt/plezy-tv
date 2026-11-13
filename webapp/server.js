@@ -4,6 +4,17 @@ const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const zlib = require('node:zlib');
+const compressedAssets = new Map();
+const networkSample = require('node:crypto').randomBytes(128 * 1024);
+const acceptsGzip = req => String(req.headers['accept-encoding'] || '').split(',').some(part => /^gzip(?:\s*;|\s*$)/i.test(part.trim()) && !/;\s*q=0(?:\.0*)?\s*$/i.test(part));
+function sendJSON(req, res, status, data) {
+  const body = Buffer.from(JSON.stringify(data));
+  const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Vary': 'Accept-Encoding' };
+  const finish = (payload, compressed) => { if (res.destroyed) return; res.writeHead(status, { ...headers, 'Content-Length': payload.length, ...(compressed ? { 'Content-Encoding': 'gzip' } : {}) }); res.end(req.method === 'HEAD' ? undefined : payload); };
+  if (body.length >= 1024 && acceptsGzip(req)) zlib.gzip(body, (error, result) => finish(error ? body : result, !error));
+  else finish(body, false);
+}
 const ROOT = path.join(__dirname, 'public');
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json', '.webmanifest':'application/manifest+json', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.ttf':'font/ttf', '.ico':'image/x-icon' };
 const FORWARD = ['accept', 'content-type', 'authorization', 'x-emby-authorization', 'x-api-key', 'range', 'if-range', 'x-cookie'];
@@ -54,7 +65,7 @@ function proxy(req, res, target, redirects = 0, inheritedHeaders, mediaTicket) {
       if (destination.origin !== url.origin) for (const key of ['authorization','x-emby-authorization','x-api-key','cookie']) delete forwarded[key];
       return proxy(req, res, destination.href, redirects + 1, forwarded, mediaTicket);
     }
-    const out = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+    const out = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Accel-Buffering': 'no' };
     for (const key of ['content-type','content-length','content-range','accept-ranges']) if (response.headers[key]) out[key] = response.headers[key];
     if (response.headers['set-cookie']) out['X-Set-Cookie'] = response.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
     if (req.method !== 'HEAD' && response.statusCode === 200 && (/mpegurl/i.test(response.headers['content-type'] || '') || url.pathname.endsWith('.m3u8'))) {
@@ -98,10 +109,16 @@ function createServer(options = {}) {
     res.setHeader('X-Frame-Options', 'DENY');
     let url;
     try { url = new URL(req.url, 'http://' + req.headers.host); } catch { res.writeHead(400); return res.end('Requête invalide'); }
+    if (url.pathname === '/api/network-test') {
+      if (!['GET','HEAD'].includes(req.method) || req.headers['sec-fetch-site'] === 'cross-site') { res.writeHead(403); return res.end(); }
+      res.writeHead(200, { 'Content-Type':'application/octet-stream', 'Content-Length':networkSample.length, 'Content-Encoding':'identity', 'Cache-Control':'no-store, no-transform', 'CDN-Cache-Control':'no-store', 'Cloudflare-CDN-Cache-Control':'no-store' });
+      res.flushHeaders();
+      return res.end(req.method === 'HEAD' ? undefined : networkSample);
+    }
     if (url.pathname.startsWith('/api/stremio/')) {
       if (req.headers['sec-fetch-site'] === 'cross-site' || req.headers.origin && !['http://' + req.headers.host, 'https://' + req.headers.host].includes(req.headers.origin)) { res.writeHead(403); return res.end(); }
       if (!['GET', 'HEAD'].includes(req.method) && !(req.method === 'POST' && url.pathname === '/api/stremio/request')) { res.writeHead(405); return res.end(); }
-      const send = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(req.method === 'HEAD' ? undefined : JSON.stringify(data)); };
+      const send = (status, data) => sendJSON(req, res, status, data);
       const route = url.pathname.slice('/api/stremio/'.length);
       if (route === 'status') return send(200, { enabled: stremio.enabled });
       if (!stremio.enabled) return send(503, { error: 'Addons Stremio non configurés' });
@@ -148,7 +165,7 @@ function createServer(options = {}) {
         return require('./stremio-media').subtitleMedia(req, res, subId, { stream: streamIdx, lang: wantedLang || 'fr', identity: entry.url + JSON.stringify(entry.headers), upstreamUrl: entry.url, hasCustomHeaders });
       }
       if (route.startsWith('hls/')) {
-        const match = /^hls\/([a-f0-9]{48})\/(master\.m3u8|quality-(360|480|720|1080|2160)\.m3u8|segment-(360|480|720|1080|2160)-(\d+)\.ts)$/.exec(route);
+        const match = /^hls\/([a-f0-9]{48})\/(master\.m3u8|quality-(240|360|480|720|1080|2160)\.m3u8|segment-(240|360|480|720|1080|2160)-(\d+)\.ts)$/.exec(route);
         if (!match) return send(404, { error: 'Chemin invalide' });
         const entry = stremio.getTicket(match[1]); if (!entry) return send(404, { error: 'Lien expiré' });
         const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'fr';
@@ -161,11 +178,13 @@ function createServer(options = {}) {
         if (!entry) return send(404, { error: 'Lien expiré. Relancez la lecture.' });
         if (url.searchParams.get('playback') === 'browser' || url.searchParams.get('probe') === '1') {
           const start = Number(url.searchParams.get('start') || 0);
+          const quality = Number(url.searchParams.get('quality') || 360);
+          if (![240,360,480,720,1080,2160].includes(quality)) return send(400, { error: 'Qualité invalide' });
           if (!Number.isFinite(start) || start < 0 || start > 604800) return send(400, { error: 'Position invalide' });
           const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'fr';
           const allowFallback = url.searchParams.get('fallback') === '1' || lang === 'en' || Boolean(entry.fallback);
           const hasCustomHeaders = Object.keys(entry.headers || {}).length > 0;
-          return require('./stremio-media').browserMedia(req, res, route.slice(6), { start, probeOnly: url.searchParams.get('probe') === '1', identity: entry.url + JSON.stringify(entry.headers), lang, allowFallback, upstreamUrl: entry.url, hasCustomHeaders });
+          return require('./stremio-media').browserMedia(req, res, route.slice(6), { start, quality, probeOnly: url.searchParams.get('probe') === '1', identity: entry.url + JSON.stringify(entry.headers), lang, allowFallback, upstreamUrl: entry.url, hasCustomHeaders });
         }
         return proxy(req, res, entry.url, 0, { ...entry.headers, ...(req.headers.range ? { range: req.headers.range } : {}) }, stremio.ticket);
       }
@@ -344,7 +363,22 @@ function createServer(options = {}) {
     if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end(); }
     fs.stat(file, (error, stat) => {
       if (error || !stat.isFile()) { res.writeHead(404, { 'Content-Type':'text/plain; charset=utf-8' }); return res.end('Fichier introuvable'); }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Content-Length':stat.size, 'Cache-Control': pathname.startsWith('/fonts/') || pathname.startsWith('/vendor/') || pathname.startsWith('/art/') ? 'public, max-age=86400' : 'no-cache, must-revalidate', ...(pathname.startsWith('/fonts/') || pathname.startsWith('/vendor/') || pathname.startsWith('/art/') ? {} : { 'CDN-Cache-Control': 'no-store', 'Cloudflare-CDN-Cache-Control': 'no-store' }) });
+      const ext = path.extname(file);
+      const permanent = pathname.startsWith('/fonts/') || pathname.startsWith('/vendor/') || pathname.startsWith('/art/');
+      const etag = 'W/"' + stat.size.toString(16) + '-' + stat.mtimeMs.toString(16) + '"';
+      const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream', 'ETag': etag, 'Vary': 'Accept-Encoding', 'Cache-Control': permanent ? 'public, max-age=86400' : 'no-cache, must-revalidate', ...(permanent ? {} : { 'CDN-Cache-Control': 'no-store', 'Cloudflare-CDN-Cache-Control': 'no-store' }) };
+      if (String(req.headers['if-none-match'] || '').split(',').map(value => value.trim()).some(value => value === etag || value === '*')) { res.writeHead(304, headers); return res.end(); }
+      if (stat.size >= 1024 && stat.size <= 2 * 1024 * 1024 && /\.(?:html|css|js|json|svg|webmanifest|ttf)$/.test(ext) && acceptsGzip(req)) {
+        const key = file + ':' + etag;
+        let payload = compressedAssets.get(key);
+        if (!payload) {
+          payload = fs.promises.readFile(file).then(body => new Promise((resolve, reject) => zlib.gzip(body, (err, result) => err ? reject(err) : resolve(result))));
+          compressedAssets.set(key, payload);
+          if (compressedAssets.size > 128) compressedAssets.delete(compressedAssets.keys().next().value);
+        }
+        return payload.then(body => { if (res.destroyed) return; res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Content-Length': body.length }); res.end(req.method === 'HEAD' ? undefined : body); }).catch(() => { compressedAssets.delete(key); if (!res.headersSent) res.writeHead(500); res.end(); });
+      }
+      res.writeHead(200, { ...headers, 'Content-Length': stat.size });
       if (req.method === 'HEAD') return res.end();
       const stream = fs.createReadStream(file); stream.on('error', () => res.destroy()); stream.pipe(res);
     });

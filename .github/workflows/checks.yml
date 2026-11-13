@@ -1,0 +1,23 @@
+name: Vérifications web et TV
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Installer FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Vérifier le serveur et le lecteur
+        run: npm test --prefix webapp
+      - name: Vérifier les lanceurs TV
+        run: npm test --prefix smart-tv/vega

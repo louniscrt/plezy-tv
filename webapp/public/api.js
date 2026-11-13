@@ -62,12 +62,14 @@
   const items = async params => (await jf(`/Users/${config.user}/Items`, { params: { Recursive: true, IncludeItemTypes: 'Movie,Series', Fields: fields, Limit: 60, ...params } })).Items || [];
   function image(item, type = 'Backdrop', width = 780) {
     if (!item) return '';
-    if (item.stremio && !item.offline) return item.stremioArt?.[type] ? proxy(item.stremioArt[type]) : '';
+    width = window.PlezyBandwidth?.imageWidth(width, type) || width;
+    const lighter = value => window.PlezyBandwidth?.imageUrl(value, type, width) || value;
+    if (item.stremio && !item.offline) return item.stremioArt?.[type] ? proxy(lighter(item.stremioArt[type])) : '';
     if (item.offline) return type === 'Logo' ? '' : item.art || '';
     if (item.demo) return type === 'Logo' ? '' : item.art;
     if (item.seerr) {
       const img = type === 'Primary' ? item.posterPath : item.backdropPath || item.posterPath;
-      return img ? `https://image.tmdb.org/t/p/${type === 'Primary' ? 'w342' : 'w1280'}${img}` : '';
+      return img ? lighter(`https://image.tmdb.org/t/p/${type === 'Primary' ? 'w342' : 'w1280'}${img}`) : '';
     }
     let id = item.Id, tag;
     if (type === 'Backdrop') {
@@ -77,7 +79,7 @@
     }
     if (type !== 'Backdrop') tag = item.ImageTags?.[type];
     if (type === 'Logo' && !tag) return '';
-    return proxy(endpoint(config.server, `/Items/${id}/Images/${type}${type === 'Backdrop' ? '/0' : ''}`, { maxWidth: width, quality: 90, tag, api_key: config.token }));
+    return proxy(endpoint(config.server, `/Items/${id}/Images/${type}${type === 'Backdrop' ? '/0' : ''}`, { maxWidth: width, quality: window.PlezyBandwidth?.economical() ? 65 : 80, tag, api_key: config.token }));
   }
   function isWatchable(item) {
     if (!item) return false;
