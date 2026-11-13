@@ -122,7 +122,7 @@ function createServer(options = {}) {
       const route = url.pathname.slice('/api/stremio/'.length);
       if (route === 'status') {
         Promise.resolve().then(() => stremio.syncAddons?.() || false)
-          .then(kiosk => send(200, { enabled: stremio.enabled, kiosk: Boolean(kiosk) }))
+          .then(kiosk => send(200, kiosk ? { enabled: stremio.enabled, kiosk: true } : { enabled: stremio.enabled }))
           .catch(() => send(200, { enabled: stremio.enabled, kiosk: false, error: 'Synchronisation Stremio indisponible.' }));
         return;
       }
