@@ -178,6 +178,14 @@
     return false;
   }
   if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    // Keep the visual marker in sync for remote, mouse and programmatic focus.
+    document.addEventListener('focusin', event => {
+      document.querySelectorAll('#screen-main .focused').forEach(node => node.classList.remove('focused'));
+      event.target?.closest?.('#screen-main .tile, #screen-main .poster')?.classList.add('focused');
+    });
+    document.addEventListener('focusout', event => {
+      event.target?.closest?.('#screen-main .tile, #screen-main .poster')?.classList.remove('focused');
+    });
     document.addEventListener('keydown', event => {
       if (window.PlezyTV) return;
       const tag = event.target?.tagName || '';
