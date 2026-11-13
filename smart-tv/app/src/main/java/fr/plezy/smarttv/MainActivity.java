@@ -145,6 +145,8 @@ public class MainActivity extends Activity {
         private boolean launchNative(String url, String title, String subtitleUrl) {
             if (!ready || !trustedMediaUrl(url) ||
                 (subtitleUrl != null && !subtitleUrl.isEmpty() && !trustedMediaUrl(subtitleUrl))) return false;
+            // If the native activity is unavailable, the web client keeps its HTML5 player.
+            if (new Intent(MainActivity.this, PlayerActivity.class).resolveActivity(getPackageManager()) == null) return false;
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || !ready || web == null || !isTelevisionPage(web.getUrl())) return;
                 Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
