@@ -38,7 +38,7 @@ test('TV bridge receives absolute media and French subtitle URLs, with HTML fall
       streams: [{url:'/api/stremio/media/fixture'}],
       subtitles: [{language:'fre',url:'/api/stremio/subtitles/fixture.vtt'}]
     }) },
-    AndroidBridge: {playVideo: (...args) => calls.push(args)}
+    AndroidBridge: {playVideo: (...args) => calls.push(args), playVideoWithSubtitle: (...args) => calls.push(args)}
   };
   vm.runInNewContext(source, {window, URL, location:{href:'https://plezy.test/tv/' }});
   assert.equal(await window.PlezyPlayback.tryNativePlayback({Id:'film',Name:'Film',stremio:true}), true);
