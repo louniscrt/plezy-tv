@@ -8,7 +8,11 @@ Ces applications affichent l’interface TV du serveur Plezy configuré. Les fic
 | `home/` | Module Home optionnel Android, paquet `fr.plezy.home` |
 | `vega/` | Lanceur Fire TV Vega, paquet `fr.plezy.smarttv.vega` |
 
-Au lancement, configurer l’adresse du serveur, par exemple `https://plezy.louniscartron.fr`. L’adresse et la session restent mémorisées sur l’appareil. Les touches de télécommande et de lecture sont adaptées par `app/src/main/assets/tv.js`.
+Au lancement, configurer l’adresse du serveur, par exemple `https://plezy.louniscartron.fr`. L’adresse et la session restent mémorisées sur l’appareil. Les touches de télécommande et de lecture sont adaptées par `app/src/main/assets/tv.js`. La WebView relaie le D-Pad et, lorsque le serveur expose le pont compatible, ouvre le lecteur natif Media3.
+
+Les adresses HTTPS sont acceptées. En HTTP, l'adresse prévue est `http://192.168.0.89:8081` ; les autres hôtes HTTP sont bloqués. Sur Android 7 et plus, la configuration réseau limite également HTTP à cet hôte. Sur les anciennes versions, les requêtes de la WebView sont filtrées par le lanceur. Un réseau local HTTP reste non chiffré.
+
+Le site et l'application Android doivent tous deux inclure le pont. Le lecteur natif utilise la source et le sous-titre transmis, mais ne synchronise pas encore la position de reprise avec le lecteur web.
 
 ## Android TV / Xiaomi
 

@@ -182,7 +182,16 @@
       const response = await fetch('/api/stremio/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: item.Type === 'Series' ? 'series' : 'movie', ...(item.stremio ? { id: item.Id } : { tmdbId: item.seerr ? item.id : item.ProviderIds?.Tmdb }) }), signal: AbortSignal.timeout(30000) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'La demande Seerr a échoué.'); return data;
     },
-    async initStremio() { try { stremioEnabled = (await stremio('status')).enabled === true; } catch { stremioEnabled = false; } return stremioEnabled; },
+    async initStremio() {
+      try {
+        const status = await stremio('status');
+        stremioEnabled = status.enabled === true;
+        config.kiosk = status.kiosk === true && stremioEnabled;
+        config.stremioError = status.error || '';
+        if (config.kiosk && !config.token) { config.user = 'stremio-kiosk'; config.name = 'Stremio'; config.demo = false; }
+      } catch { stremioEnabled = false; config.kiosk = false; }
+      return stremioEnabled;
+    },
     async login(server, username, password) {
       const base = normalize(server);
       const result = await request(base, '/Users/AuthenticateByName', { method: 'POST', body: { Username: username.trim(), Pw: password }, auth: false });

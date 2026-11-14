@@ -1,4 +1,4 @@
-const CACHE = 'plezy-shell-hd-20261113-v15';
+const CACHE = 'plezy-shell-hd-20261114-bridge2';
 const SHELL = ['/', '/index.html', '/tv/', '/tv/index.html', '/style.css', '/player.css', '/detail.css', '/api.js', '/bandwidth.js', '/resume.js', '/seerr-session.js', '/refresh.js', '/seerr-pairing.js', '/vendor/qrcode.js', '/detail.js', '/app.js', '/playback.js', '/player.js', '/demo.js', '/offline.js', '/profiles.js', '/icon.svg', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest', '/vendor/hls.min.js', ...['app.js','detail.js','playback.js','player.js','navigation.js','resume-motion.js','cinema.css','player.css','home-menu.css','resume-menu.css','player-reference.css'].map(name=>'/tv/'+name), ...Array.from({length:8},(_,i)=>'/art/demo-'+i+'.jpg'), ...['regular','medium','semibold','bold','extrabold'].map(w => '/fonts/inter_' + w + '.ttf')];
 // Cache only what is used. Installation must not compete with the first page
 // for bandwidth by downloading demo artwork, every font and a second JS bundle.

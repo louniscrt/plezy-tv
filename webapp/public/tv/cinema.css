@@ -36,12 +36,12 @@ html.plezy-cinema #screen-main #rows{margin-top:18px;gap:24px}
 html.plezy-cinema #screen-main .row{scroll-margin-top:112px}
 html.plezy-cinema #screen-main .row h2{font-size:clamp(21px,2vw,30px);font-weight:600;margin-bottom:6px}
 html.plezy-cinema #screen-main .tile{border-radius:12px;border:0;box-shadow:none}
-html.plezy-cinema #screen-main .tile.tv-focus{outline:3px solid #fff!important;outline-offset:3px!important;transform:scale(1.025);box-shadow:none}
+html.plezy-cinema #screen-main .tile.tv-focus,html.plezy-cinema #screen-main .tile.focused{outline:3px solid #fff!important;outline-offset:3px!important;transform:scale(1.025);box-shadow:none}
 /* Le rang est décoratif ; seule l'affiche est un bouton navigable. */
 html.plezy-cinema #screen-main .top10{outline:none!important;box-shadow:none!important;transform:none!important;pointer-events:none}
 html.plezy-cinema #screen-main .top10 .num{pointer-events:none;user-select:none}
 html.plezy-cinema #screen-main .top10 .poster{pointer-events:auto;cursor:pointer;color:inherit;text-align:inherit;transition:transform .16s}
-html.plezy-cinema #screen-main .top10 .poster.tv-focus,html.plezy-cinema #screen-main .top10 .poster:focus-visible{outline:3px solid #fff!important;outline-offset:3px!important;box-shadow:none!important;transform:scale(1.035);z-index:5}
+html.plezy-cinema #screen-main .top10 .poster.tv-focus,html.plezy-cinema #screen-main .top10 .poster.focused,html.plezy-cinema #screen-main .top10 .poster:focus-visible{outline:3px solid #fff!important;outline-offset:3px!important;box-shadow:none!important;transform:scale(1.035);z-index:5}
 html.plezy-cinema #screen-main .row-track{gap:16px;padding-top:10px;padding-bottom:20px}
 html.plezy-cinema #screen-main .resume-card{flex:0 0 clamp(170px,16vw,260px);height:auto;aspect-ratio:auto;background:none;overflow:visible;align-self:flex-start;transition:flex-basis .2s}
 html.plezy-cinema #screen-main .resume-cover{position:relative;display:block;height:clamp(220px,22vw,340px);overflow:hidden;border-radius:12px;background:#16181e}

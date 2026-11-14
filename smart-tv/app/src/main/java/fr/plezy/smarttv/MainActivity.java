@@ -12,6 +12,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -25,6 +26,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import org.json.JSONObject;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
@@ -34,8 +36,9 @@ public class MainActivity extends Activity {
     private WebView web;
     private LinearLayout root;
     private SharedPreferences prefs;
-    private String server;
-    private boolean ready, failed;
+    private volatile String server;
+    private volatile boolean ready;
+    private boolean failed;
     private int loadSerial;
     private String adapter;
     private View customVideo;
@@ -76,6 +79,8 @@ public class MainActivity extends Activity {
     private void createWeb() {
         web = new WebView(this);
         web.setBackgroundColor(Color.rgb(16,16,16));
+        web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        web.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -99,6 +104,14 @@ public class MainActivity extends Activity {
                 return request.isForMainFrame() && route(request.getUrl().toString());
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return route(url); }
+            // Network Security Config is unavailable on older Fire OS releases.
+            // Reject other cleartext WebView subrequests explicitly as well.
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return blockedCleartext(request.getUrl().toString()) ? blockedResponse() : null;
+            }
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+                return blockedCleartext(url) ? blockedResponse() : null;
+            }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError e) {
                 if (request.isForMainFrame()) error("Serveur Plezy inaccessible. Vérifiez que la TV et votre serveur sont connectés au même réseau, et que le conteneur Plezy fonctionne.");
             }
@@ -121,6 +134,41 @@ public class MainActivity extends Activity {
             @Override public void onHideCustomView() { hideCustom(); }
         });
     }
+    /** Only the configured Plezy origin may be handed to the native player. */
+    private boolean trustedMediaUrl(String value) {
+        if (value == null || value.isEmpty()) return false;
+        Uri uri = Uri.parse(value);
+        return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+            && uri.getHost() != null && uri.getUserInfo() == null && sameOrigin(value);
+    }
+
+    public final class AndroidBridge {
+        @JavascriptInterface public boolean playVideo(String url, String title) {
+            return launchNative(url, title, "");
+        }
+
+        @JavascriptInterface public boolean playVideoWithSubtitle(String url, String title, String subtitleUrl) {
+            return launchNative(url, title, subtitleUrl);
+        }
+
+        private boolean launchNative(String url, String title, String subtitleUrl) {
+            if (!ready || !trustedMediaUrl(url) ||
+                (subtitleUrl != null && !subtitleUrl.isEmpty() && !trustedMediaUrl(subtitleUrl))) return false;
+            // If the native activity is unavailable, the web client keeps its HTML5 player.
+            if (new Intent(MainActivity.this, PlayerActivity.class).resolveActivity(getPackageManager()) == null) return false;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || !ready || web == null || !isTelevisionPage(web.getUrl())) return;
+                Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
+                intent.putExtra(PlayerActivity.EXTRA_URL, url);
+                intent.putExtra(PlayerActivity.EXTRA_TITLE, title == null ? "" : title);
+                intent.putExtra(PlayerActivity.EXTRA_SUBTITLE_URL, subtitleUrl == null ? "" : subtitleUrl);
+                // Activity.onPause pauses the WebView while the native player is visible.
+                startActivity(intent);
+            });
+            return true;
+        }
+    }
+
     private void injectAdapter(WebView view, int serial, int attempts) {
         if (isDestroyed() || failed || serial != loadSerial || !isTelevisionPage(view.getUrl())) return;
         view.evaluateJavascript(adapter, value -> {
@@ -137,6 +185,14 @@ public class MainActivity extends Activity {
     }
     private boolean isTelevisionPage(String value) {
         return sameOrigin(value) && Uri.parse(televisionUrl(server)).getPath().equals(Uri.parse(value).getPath());
+    }
+    private boolean blockedCleartext(String value) {
+        Uri uri = Uri.parse(value);
+        return "http".equalsIgnoreCase(uri.getScheme()) && !"192.168.0.89".equals(uri.getHost());
+    }
+    private WebResourceResponse blockedResponse() {
+        return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden",
+            java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
     }
     private boolean sameOrigin(String value) {
         if (value == null) return false;
@@ -156,6 +212,7 @@ public class MainActivity extends Activity {
     }
     private void load() {
         ready = false; failed = false;
+        if (blockedCleartext(server)) { error("Cette adresse HTTP n’est pas autorisée. Utilisez HTTPS ou l’adresse locale 192.168.0.89."); return; }
         root.removeAllViews();
         if (web.getParent() != null) ((ViewGroup) web.getParent()).removeView(web);
         root.addView(web, new LinearLayout.LayoutParams(-1,-1));
@@ -198,6 +255,9 @@ public class MainActivity extends Activity {
             if (uri.getHost() == null || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
                 input.setError("Adresse HTTP ou HTTPS invalide."); return;
             }
+            if (blockedCleartext(value)) {
+                input.setError("Utilisez HTTPS ou l’adresse HTTP locale 192.168.0.89."); return;
+            }
             if (!value.endsWith("/")) value += "/";
             server = value; prefs.edit().putString("server",server).apply();
             dialog.dismiss(); load();
@@ -219,6 +279,33 @@ public class MainActivity extends Activity {
         int key = event.getKeyCode();
         if (key == KeyEvent.KEYCODE_MENU || key == KeyEvent.KEYCODE_SETTINGS) {
             if (event.getAction() == KeyEvent.ACTION_UP) configure(); return true;
+        }
+        if (ready && web != null && customVideo == null && web.hasFocus() && hasWindowFocus()) {
+            String dpad = null;
+            switch (key) {
+                case KeyEvent.KEYCODE_DPAD_UP: dpad = "ArrowUp"; break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: dpad = "ArrowDown"; break;
+                case KeyEvent.KEYCODE_DPAD_LEFT: dpad = "ArrowLeft"; break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: dpad = "ArrowRight"; break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_NUMPAD_ENTER: dpad = "Enter"; break;
+            }
+            if (dpad != null && (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP)) {
+                KeyEvent original = new KeyEvent(event);
+                String type = event.getAction() == KeyEvent.ACTION_DOWN ? "keydown" : "keyup";
+                String script = "(function(){var e=document.activeElement||document.body;"
+                    + "if(e.matches('input,textarea,select,[contenteditable=true]'))return false;"
+                    + "var k=" + JSONObject.quote(dpad) + ",t=" + JSONObject.quote(type) + ";"
+                    + "var ev=new KeyboardEvent(t,{key:k,code:k,bubbles:true,cancelable:true,repeat:" + (event.getRepeatCount() > 0) + "});"
+                    + "e.dispatchEvent(ev);"
+                    + "if(t==='keydown'&&k==='Enter'&&!ev.defaultPrevented&&e.matches('button,a'))e.click();"
+                    + "return true;})()";
+                web.evaluateJavascript(script, handled -> {
+                    if ("false".equals(handled) && !isFinishing() && !isDestroyed() && web != null) web.dispatchKeyEvent(original);
+                });
+                return true;
+            }
         }
         if (ready && event.getAction() == KeyEvent.ACTION_DOWN) {
             String media = null;
