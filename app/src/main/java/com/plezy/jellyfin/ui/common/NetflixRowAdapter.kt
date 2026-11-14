@@ -1,5 +1,6 @@
 package com.plezy.jellyfin.ui.common
 
+import android.animation.AnimatorInflater
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -74,6 +75,7 @@ class NetflixRowAdapter(
         private val rank: OutlinedNumberView? = itemView.findViewById(R.id.tvRank)
 
         init {
+            itemView.stateListAnimator = AnimatorInflater.loadStateListAnimator(itemView.context, R.animator.card_focus_animator)
             ivThumb.clipToOutline = true
             itemView.findViewById<View>(R.id.tileFrame)?.clipToOutline = true
         }
@@ -120,17 +122,9 @@ class NetflixRowAdapter(
                 ivThumb.setImageResource(R.drawable.bg_nfx_tile)
             }
 
-            itemView.setOnFocusChangeListener { v, hasFocus ->
-                val s = if (hasFocus) 1.06f else 1.0f
-                val interp = androidx.core.view.animation.PathInterpolatorCompat.create(0.2f, 0.9f, 0.3f, 1.0f)
-                v.animate()
-                    .scaleX(s)
-                    .scaleY(s)
-                    .translationZ(if (hasFocus) 12f else 0f)
-                    .setInterpolator(interp)
-                    .setDuration(280)
-                    .start()
-                if (hasFocus) onItemFocused(item, bindingAdapterPosition.coerceAtLeast(0))
+            itemView.setOnFocusChangeListener { _, hasFocus ->
+                val position = bindingAdapterPosition
+                if (hasFocus && position != RecyclerView.NO_POSITION) onItemFocused(items[position], position)
             }
             itemView.setOnClickListener { onItemClicked(item) }
             itemView.setOnKeyListener { _, keyCode, event ->

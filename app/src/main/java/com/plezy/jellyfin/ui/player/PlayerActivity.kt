@@ -89,6 +89,8 @@ class PlayerActivity : AppCompatActivity() {
     private var resumePlaying = true
     private var dialogOpen = false
     private var fallbackTried = false
+    private var networkRetryCount = 0
+    private var networkRetryGeneration = 0
     private val reportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var tickCounter = 0
     private val uiHandler = Handler(Looper.getMainLooper())
@@ -666,6 +668,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setStream(exo: ExoPlayer, position: Long, playing: Boolean) {
+        networkRetryGeneration++
+        networkRetryCount = 0
         val local = offlineManager.getLocalFileFor(mediaItem.id)
         if (local == null && StremioClient.owns(mediaItem.id)) {
             streamJob?.cancel()
@@ -809,6 +813,16 @@ class PlayerActivity : AppCompatActivity() {
             override fun onPlaybackStateChanged(state: Int) {
                 findViewById<View>(R.id.playerBuffering).visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                 if (state == Player.STATE_READY) {
+                    // Only forgive retries after playback actually advances; READY
+                    // alone can be followed immediately by another network error.
+                    val generation = networkRetryGeneration
+                    val position = exo.currentPosition
+                    if (networkRetryCount > 0) uiHandler.postDelayed({
+                        if (player === exo && generation == networkRetryGeneration &&
+                            exo.isPlaying && exo.currentPosition - position >= 10_000L) {
+                            networkRetryCount = 0
+                        }
+                    }, 30_000L)
                     val duration = exo.duration
                     if (duration > 0) chapterProgressBar.setChapterFractions(mediaItem.chapters.map { (it.startPositionTicks / 10_000.0 / duration).toFloat() })
                 }
@@ -819,6 +833,23 @@ class PlayerActivity : AppCompatActivity() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 findViewById<View>(R.id.playerBuffering).visibility = View.GONE
+                val networkError = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+                if (networkError && networkRetryCount < 3 && offlineManager.getLocalFileFor(mediaItem.id) == null) {
+                    val position = exo.currentPosition.coerceAtLeast(0L)
+                    val itemId = mediaItem.id
+                    val generation = ++networkRetryGeneration
+                    val delay = 1_000L * ++networkRetryCount
+                    findViewById<View>(R.id.playerBuffering).visibility = View.VISIBLE
+                    uiHandler.postDelayed({
+                        if (player === exo && mediaItem.id == itemId && generation == networkRetryGeneration &&
+                            exo.playbackState == Player.STATE_IDLE) {
+                            exo.seekTo(position)
+                            exo.prepare()
+                        }
+                    }, delay)
+                    return
+                }
                 if (StremioClient.owns(mediaItem.id)) {
                     if (!stremioHlsFallback) {
                         stremioHlsFallback = true
@@ -965,6 +996,8 @@ class PlayerActivity : AppCompatActivity() {
     }
     private fun releasePlayer() {
         uiHandler.removeCallbacksAndMessages(null)
+        networkRetryGeneration++
+        networkRetryCount = 0
         playerOverlay.animate().cancel()
         player?.let { exo ->
             resumePosition = exo.currentPosition.coerceAtLeast(0L)

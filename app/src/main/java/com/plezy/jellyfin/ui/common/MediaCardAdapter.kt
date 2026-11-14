@@ -1,5 +1,6 @@
 package com.plezy.jellyfin.ui.common
 
+import android.animation.AnimatorInflater
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -80,12 +81,11 @@ class MediaCardAdapter(
         init {
             // Coins arrondis matériels (API 21+)
             ivImage.clipToOutline = true
+            itemView.stateListAnimator = AnimatorInflater.loadStateListAnimator(itemView.context, R.animator.card_focus_animator)
         }
 
         fun bind(item: MediaItem) {
-            itemView.animate().cancel()
-            itemView.scaleX = if (itemView.hasFocus()) 1.05f else 1f
-            itemView.scaleY = itemView.scaleX
+            itemView.stateListAnimator?.jumpToCurrentState()
             Glide.with(ivImage).clear(ivImage)
             ivImage.setBackgroundResource(R.drawable.bg_rounded_image_14)
             if (style == CardStyle.EPISODE) {
@@ -187,12 +187,9 @@ class MediaCardAdapter(
                 ivImage.setImageDrawable(android.graphics.drawable.ColorDrawable(demoColors[(item.id.hashCode() and 0x7FFFFFFF) % demoColors.size]))
             }
 
-            itemView.setOnFocusChangeListener { v, hasFocus ->
-                val scale = if (hasFocus) 1.05f else 1.0f
-                v.animate().scaleX(scale).scaleY(scale).setDuration(140).start()
-                if (hasFocus) {
-                    onItemFocused(item)
-                }
+            itemView.setOnFocusChangeListener { _, hasFocus ->
+                val position = bindingAdapterPosition
+                if (hasFocus && position != RecyclerView.NO_POSITION) onItemFocused(items[position])
             }
 
             itemView.setOnClickListener {
