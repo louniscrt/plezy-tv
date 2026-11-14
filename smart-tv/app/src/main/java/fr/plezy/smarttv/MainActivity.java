@@ -26,6 +26,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import org.json.JSONObject;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
@@ -103,6 +104,14 @@ public class MainActivity extends Activity {
                 return request.isForMainFrame() && route(request.getUrl().toString());
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return route(url); }
+            // Network Security Config is unavailable on older Fire OS releases.
+            // Reject other cleartext WebView subrequests explicitly as well.
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return blockedCleartext(request.getUrl().toString()) ? blockedResponse() : null;
+            }
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+                return blockedCleartext(url) ? blockedResponse() : null;
+            }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError e) {
                 if (request.isForMainFrame()) error("Serveur Plezy inaccessible. Vérifiez que la TV et votre serveur sont connectés au même réseau, et que le conteneur Plezy fonctionne.");
             }
@@ -177,6 +186,14 @@ public class MainActivity extends Activity {
     private boolean isTelevisionPage(String value) {
         return sameOrigin(value) && Uri.parse(televisionUrl(server)).getPath().equals(Uri.parse(value).getPath());
     }
+    private boolean blockedCleartext(String value) {
+        Uri uri = Uri.parse(value);
+        return "http".equalsIgnoreCase(uri.getScheme()) && !"192.168.0.89".equals(uri.getHost());
+    }
+    private WebResourceResponse blockedResponse() {
+        return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden",
+            java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
+    }
     private boolean sameOrigin(String value) {
         if (value == null) return false;
         Uri a = Uri.parse(value), b = Uri.parse(server);
@@ -195,6 +212,7 @@ public class MainActivity extends Activity {
     }
     private void load() {
         ready = false; failed = false;
+        if (blockedCleartext(server)) { error("Cette adresse HTTP n’est pas autorisée. Utilisez HTTPS ou l’adresse locale 192.168.0.89."); return; }
         root.removeAllViews();
         if (web.getParent() != null) ((ViewGroup) web.getParent()).removeView(web);
         root.addView(web, new LinearLayout.LayoutParams(-1,-1));
@@ -236,6 +254,9 @@ public class MainActivity extends Activity {
             Uri uri = Uri.parse(value);
             if (uri.getHost() == null || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
                 input.setError("Adresse HTTP ou HTTPS invalide."); return;
+            }
+            if (blockedCleartext(value)) {
+                input.setError("Utilisez HTTPS ou l’adresse HTTP locale 192.168.0.89."); return;
             }
             if (!value.endsWith("/")) value += "/";
             server = value; prefs.edit().putString("server",server).apply();
