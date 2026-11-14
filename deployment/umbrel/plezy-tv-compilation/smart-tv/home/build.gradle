@@ -1,0 +1,13 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'fr.plezy.home'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'fr.plezy.home'
+        minSdk 24
+        targetSdk 34
+        versionCode 8
+        versionName '1.0.7'
+    }
+}
