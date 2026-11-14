@@ -22,3 +22,9 @@ jobs:
           gradle-version: '8.4'
       - name: Compile Android TV application
         run: gradle -p smart-tv :app:assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plezy-smart-tv-debug
+          path: smart-tv/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
