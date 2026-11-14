@@ -1,0 +1,12 @@
+services:
+  plezy-stremio:
+    build: ./app
+    image: plezy-stremio:umbrel-20261114
+    container_name: plezy-stremio-umbrel
+    restart: unless-stopped
+    ports:
+    - 192.168.0.89:18093:8090
+    environment:
+      STREMIO_CONFIG_FILE: /config/stremio.json
+    volumes:
+    - ./stremio.json:/config/stremio.json:ro

@@ -1,0 +1,43 @@
+schema-version = 1
+
+[package]
+title = "Plezy TV"
+version = "1.0.0"
+id = "com.plezy.tv"
+icon = "@image/icon.png"
+description = "Application Plezy TV native Netflix 2026 pour Amazon Fire TV Vega OS"
+
+[os.version]
+min = "1.2"
+target = "1.2"
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[components]
+[[components.interactive]]
+id = "com.plezy.tv.main"
+runtime-module = "/com.amazon.kepler.keplerscript.runtime.loader_2@IKeplerScript_2_0"
+launch-type = "singleton"
+categories = ["com.amazon.category.main"]
+
+[wants]
+[[wants.service]]
+id = "com.amazon.webview.renderer_service"
+[[wants.service]]
+id = "com.amazon.inputmethod.service"
+[[wants.service]]
+id = "com.amazon.media.server"
+[[wants.service]]
+id = "com.amazon.mediametrics.service"
+[[wants.service]]
+id = "com.amazon.audio.stream"
+[[wants.service]]
+id = "com.amazon.audio.control"
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
+
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"

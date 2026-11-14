@@ -1,0 +1,12 @@
+services:
+  plezy-umbrel-test:
+    build: ./app
+    image: plezy-umbrel-test:local
+    container_name: plezy-umbrel-migration-test
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:18093:8090
+    environment:
+      STREMIO_CONFIG_FILE: /config/stremio.json
+    volumes:
+    - ./stremio-independent.json:/config/stremio.json:ro

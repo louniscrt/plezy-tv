@@ -1,0 +1,17 @@
+services:
+  plezy-web:
+    image: plezy-web:playback-20261113
+    cpus: 2
+    mem_limit: 1g
+    environment:
+      STREMIO_CONFIG_FILE: /run/secrets/stremio.json
+    volumes:
+    - /home/umbrel/.config/plezy/stremio.json:/run/secrets/stremio.json:ro
+    - /home/umbrel/plezy-tv-compilation/deliverables/PlezyTV-Umbrel-Stremio.apk:/app/public/downloads/PlezyTV-Umbrel-Stremio.apk:ro
+    networks:
+    - default
+    - umbrel-internal
+networks:
+  umbrel-internal:
+    external: true
+    name: umbrel_main_network

@@ -1,0 +1,19 @@
+{
+  "metadataManifest": "REPLACE_LOCALLY",
+  "addons": [
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY",
+    "REPLACE_LOCALLY"
+  ],
+  "frenchOnly": true,
+  "metadata": {
+    "seerrUrl": "REPLACE_LOCALLY",
+    "seerrApiKey": "REPLACE_LOCALLY"
+  },
+  "authKey": "REPLACE_LOCALLY"
+}
