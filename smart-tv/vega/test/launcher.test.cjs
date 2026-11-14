@@ -21,17 +21,21 @@ test('Pont Vega disponible après le chargement : le lanceur peut être relancé
   const app=launch(undefined,false,false);
   app.context.window.ReactNativeWebView={postMessage:value=>app.messages.push(JSON.parse(value))};
   app.context.window.PlezyLauncher.start();
-  assert.equal(app.messages[0].url,'http://192.168.1.253:8081/');assert.equal(app.nodes.browserHelp.hidden,true);
+  assert.equal(app.messages[0].url,'http://192.168.0.89:8081/');assert.equal(app.nodes.browserHelp.hidden,true);
 });
-test('Premier lancement : ouvre Plezy via le TP-Link',()=>{
-  assert.deepEqual(launch().messages,[{type:'open-server',url:'http://192.168.1.253:8081/'}]);
+test('Premier lancement : ouvre Plezy sur le serveur local indiqué',()=>{
+  assert.deepEqual(launch().messages,[{type:'open-server',url:'http://192.168.0.89:8081/'}]);
 });
 test('Réouverture : utilise la dernière adresse enregistrée',()=>{
   assert.equal(launch('https://plezy.example/').messages[0].url,'https://plezy.example/');
 });
-test('Mise à jour : remplace l’ancienne adresse locale par celle du TP-Link',()=>{
+test('Une adresse locale enregistrée est conservée sans migration forcée',()=>{
   const app=launch('http://192.168.0.89:8081/');
-  assert.equal(app.storage.get('plezy.tv.server'),'http://192.168.1.253:8081/');
+  assert.equal(app.storage.get('plezy.tv.server'),'http://192.168.0.89:8081/');
+  assert.equal(app.messages[0].url,'http://192.168.0.89:8081/');
+});
+test('Une adresse TP-Link enregistrée est également conservée',()=>{
+  const app=launch('http://192.168.1.253:8081/');
   assert.equal(app.messages[0].url,'http://192.168.1.253:8081/');
 });
 test('Réglages : normalise et conserve une adresse HTTPS',()=>{
