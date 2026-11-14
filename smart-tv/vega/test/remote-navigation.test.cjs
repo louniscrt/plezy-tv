@@ -5,14 +5,16 @@ const fs=require('node:fs');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../../app/src/main/assets/tv.js'),'utf8');
 function fixture({scroll=400,earlier=true,android=false}={}){
+ const handlers={};
  const pane={scrollTop:scroll,scrollBy({top}){this.scrollTop=Math.max(0,this.scrollTop+top);}};
  const header={append(){}};
- const document={activeElement:null,documentElement:{classList:{add(){},contains:()=>android}},addEventListener(){},createElement(){return {setAttribute(){}};}};
+ const document={activeElement:null,documentElement:{classList:{add(){},contains:()=>android}},addEventListener(name,fn){handlers[name]=fn;},createElement(){return {setAttribute(){}};}};
  let catalogScans=0;
  const track=android?{querySelectorAll:()=>row}:null;
  const button=(name,y,isHeader=false)=>({name,isConnected:true,disabled:false,tabIndex:0,
   getBoundingClientRect(){return {left:120,right:300,top:y,bottom:y+45,width:180,height:45};},
-  matches(selector){return selector==='button:not(.row-arrow)';},
+  matches(selector){return selector==='button:not(.row-arrow)' || selector==='button,a';},
+  click(){this.clicks=(this.clicks||0)+1;},
   closest(selector){if(selector==='.row-track')return isHeader?null:track;if(selector==='.topbar')return isHeader?header:null;if(selector.includes('#mainScroll'))return isHeader?null:pane;return null;},
   focus(){document.activeElement=this;},scrollIntoView(){this.scrolled=true;}
  });
@@ -29,7 +31,7 @@ function fixture({scroll=400,earlier=true,android=false}={}){
  const context={window:{PlezyUI:{screen:'main'}},document,innerWidth:1280,innerHeight:720,
   getComputedStyle:()=>({display:'block',visibility:'visible'}),MutationObserver:class{observe(){}},requestAnimationFrame(){},setTimeout(){}};
  vm.runInNewContext(source,context);
- return {pane,nav,current,above,next,document,scans:()=>catalogScans,move:context.window.PlezyTV.move};
+ return {pane,nav,current,above,next,document,scans:()=>catalogScans,move:context.window.PlezyTV.move,keydown:event=>handlers.keydown(event)};
 }
 test('Up in a scrolled catalog chooses earlier content instead of the nearby fixed header',()=>{
  const f=fixture();f.move('ArrowUp');assert.equal(f.document.activeElement,f.above);assert.equal(f.above.scrolled,true);
@@ -48,4 +50,12 @@ test('Android sideways navigation skips disabled cards and stays in the row with
  f.move('ArrowRight');assert.equal(f.document.activeElement,f.next);
  f.move('ArrowLeft');assert.equal(f.document.activeElement,f.current);
  assert.equal(f.scans(),0);
+});
+
+test('A single Vega D-pad event moves once and Enter activates once',()=>{
+ const f=fixture({android:true});
+ let prevented=0;
+ const event=key=>({key,target:{tagName:'BUTTON'},preventDefault(){prevented++;},stopImmediatePropagation(){},repeat:false});
+ f.keydown(event('ArrowRight'));assert.equal(f.document.activeElement,f.next);assert.equal(prevented,1);
+ f.keydown(event('Enter'));assert.equal(f.next.clicks,1);assert.equal(prevented,2);
 });

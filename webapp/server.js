@@ -120,7 +120,12 @@ function createServer(options = {}) {
       if (!['GET', 'HEAD'].includes(req.method) && !(req.method === 'POST' && url.pathname === '/api/stremio/request')) { res.writeHead(405); return res.end(); }
       const send = (status, data) => sendJSON(req, res, status, data);
       const route = url.pathname.slice('/api/stremio/'.length);
-      if (route === 'status') return send(200, { enabled: stremio.enabled });
+      if (route === 'status') {
+        Promise.resolve().then(() => stremio.syncAddons?.() || false)
+          .then(kiosk => send(200, kiosk ? { enabled: stremio.enabled, kiosk: true } : { enabled: stremio.enabled }))
+          .catch(() => send(200, { enabled: stremio.enabled, kiosk: false, error: 'Synchronisation Stremio indisponible.' }));
+        return;
+      }
       if (!stremio.enabled) return send(503, { error: 'Addons Stremio non configurés' });
       if (route === 'request' && req.method === 'POST') {
         (async () => {

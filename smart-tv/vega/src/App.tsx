@@ -7,7 +7,7 @@ import injection from './injection.json';
 import {origin, televisionUrl, isTelevisionPage, isDocumentError, retryUrl} from './navigation';
 
 const LAUNCHER = 'file:///pkg/assets/launcher.html';
-const DEFAULT_SERVER = 'http://192.168.1.253:8081/';
+const DEFAULT_SERVER = 'http://192.168.0.89:8081/';
 // Dedicated presentation, same origin and storage as the existing TV session.
 const isLauncher = (url: string) => url === LAUNCHER || url === LAUNCHER + '#settings';
 
@@ -51,7 +51,9 @@ export const App = () => {
   }
   return <View style={styles.root}>
     <WebView ref={web} style={styles.web} source={{uri}}
-      hasTVPreferredFocus javaScriptEnabled domStorageEnabled
+      // Vega WebView delivers D-pad and Enter directly to the focused page.
+      // Do not reinject keys through useTVEventHandler: that would duplicate them.
+      hasTVPreferredFocus={!error} javaScriptEnabled domStorageEnabled
       allowSystemKeyEvents allowsDefaultMediaControl
       mediaPlaybackRequiresUserAction={false} allowFileAccess={false}
       onLoad={({nativeEvent}) => {

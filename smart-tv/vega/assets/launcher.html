@@ -2,16 +2,10 @@
 <style>*{box-sizing:border-box}html,body{margin:0;height:100%;background:#080808;color:#eee;font:24px Arial,sans-serif}main{padding:90px;max-width:1100px}h1{color:#e50914;letter-spacing:4px}p{color:#bbb;line-height:1.5}label{display:block;margin:30px 0 12px}input,button{font:inherit;padding:20px;border:1px solid #555;border-radius:14px;color:#fff;background:#1b1b1b}input{width:100%}button{margin-top:25px;min-width:230px;background:#eee;color:#111;font-weight:bold}:focus{outline:4px solid #fff;outline-offset:6px}#error{color:#ff6971}small{display:block;margin-top:35px;color:#999}</style></head>
 <body><main><h1>PLEZY TV</h1><p id="status">Ouverture de votre cinéma…</p><p hidden id="browserHelp">Ce fichier est le lanceur du paquet Vega. Pour utiliser Plezy dans un navigateur, ouvrez <a id="webLink" href="http://192.168.0.89:8081/" style="color:white">Plezy Web sur votre serveur</a>. Sur la Fire TV, démarrez l’application Plezy TV installée.</p><form hidden id="form"><label for="server">Adresse de Plezy Web</label><input id="server" type="url" autocomplete="url" required><button type="submit">Enregistrer et ouvrir</button><p id="error" role="alert"></p><small>Pour HTTP, cette version autorise les serveurs 192.168.0.89 et 192.168.1.253. Vous pouvez aussi utiliser une adresse HTTPS.</small></form></main>
 <script>
-(()=>{const fallback='http://192.168.1.253:8081/';
+(()=>{const fallback='http://192.168.0.89:8081/';
 let saved=fallback;
 try {
   saved=localStorage.getItem('plezy.tv.server')||fallback;
-  if (!localStorage.getItem('plezy.tv.bbox-migrated')) {
-    if (saved==='http://192.168.0.89:8081/' || saved==='http://192.168.0.89:8081') {
-      saved=fallback;localStorage.setItem('plezy.tv.server',saved);
-    }
-    localStorage.setItem('plezy.tv.bbox-migrated','1');
-  }
 } catch {}
 const open=url=>{
   if(typeof window.ReactNativeWebView?.postMessage==='function'){

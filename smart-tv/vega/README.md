@@ -2,7 +2,11 @@
 
 Lanceur WebView React Native / Kepler pour Fire TV Vega. La version des sources est indiquée dans `package.json` et `manifest.toml`.
 
-Configurer l’adresse du serveur au lancement, par exemple `https://plezy.louniscartron.fr`. Le lanceur ouvre ensuite `/tv/index.html` sur cette origine. Les erreurs de chargement d’un média ne remplacent pas l’interface par une erreur de document.
+Au premier lancement, le serveur par défaut est `http://192.168.0.89:8081`. Une adresse enregistrée est conservée, et le lanceur ouvre `/tv/index.html` sur cette origine. Le menu TV permet de choisir une autre adresse HTTPS ou une des adresses locales HTTP autorisées par le manifeste. Les erreurs de chargement d’un média ne remplacent pas l’interface par une erreur de document.
+
+La WebView Vega reçoit directement les flèches et la touche OK quand elle a le focus. L’adaptateur `tv.js` gère ces touches et le focus du catalogue ; aucun second transfert JavaScript n’est ajouté pour éviter les doubles déplacements. `allowSystemKeyEvents` transmet aussi Retour au site.
+
+L’accès HTTP est limité aux deux hôtes explicitement présents dans `manifest.toml` ; HTTPS n’utilise pas cette liste. Aucun privilège de lecture des informations Wi-Fi n’est demandé, car la WebView n’en a pas besoin. Le projet cible les appareils TV avec une interface plein écran paysage ; la documentation Vega consultée ne décrit pas de champ de manifeste ou d’`app.json` pour verrouiller l’orientation, qui doit donc être vérifiée sur l’appareil.
 
 ## Tests sans SDK
 
