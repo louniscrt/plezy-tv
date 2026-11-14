@@ -1,0 +1,21 @@
+name: Build Plezy web image
+
+on:
+  push:
+    branches: ['feature/vega-webview-remote']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container image
+        run: docker build --tag plezy-web:ci webapp
+      - name: Check service starts
+        run: |
+          docker run -d --name plezy-ci -p 127.0.0.1:18090:8090 plezy-web:ci
+          curl --fail --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:18090/health
