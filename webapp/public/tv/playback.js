@@ -148,5 +148,30 @@
     }
     throw new Error('Jellyfin ne peut pas préparer ce média. Activez le transcodage ou utilisez une version compatible avec le navigateur.');
   }
-  window.PlezyPlayback = { profile, negotiate, absolute };
+  async function tryNativePlayback(item) {
+    const bridge = window.AndroidBridge;
+    if (!bridge || typeof bridge.playVideo !== 'function' || item.demo || item.offline) return false;
+    try {
+      let streamUrl, subtitleUrl = '';
+      if (item.stremio) {
+        const result = await A.stremio('streams', { id: item.Id, ...(item.ProductionYear ? { year: item.ProductionYear } : {}) });
+        const stream = (result.streams || [])[0] || (result.fallbackStreams || [])[0];
+        if (!stream?.url) return false;
+        streamUrl = stream.url;
+        const sub = (result.subtitles || []).find(s => /^(fr|fra|fre)/i.test(s.language || s.lang || ''));
+        subtitleUrl = sub?.url || '';
+      } else {
+        const plan = await negotiate(item);
+        streamUrl = A.proxy(plan.url);
+      }
+      const toWebUrl = value => {
+        const url = new URL(value, location.href);
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Adresse de lecture invalide');
+        return url.href;
+      };
+      const accepted = bridge.playVideo(toWebUrl(streamUrl), String(item.Name || ''), subtitleUrl ? toWebUrl(subtitleUrl) : '');
+      return accepted !== false;
+    } catch { return false; }
+  }
+  window.PlezyPlayback = { profile, negotiate, absolute, tryNativePlayback };
 })();

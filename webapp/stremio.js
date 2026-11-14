@@ -168,10 +168,12 @@ function createStremio({ config, fetchJSON } = {}) {
     const file = process.env.STREMIO_CONFIG_FILE;
     config = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : { addons: [] };
   }
-  const bases = [...new Set((config.addons || []).map(a => baseUrl(typeof a === 'string' ? a : a.manifestUrl)))];
-  // Cinemeta supplies metadata, not Real-Debrid links. It is optional and replaceable.
+  // Keep the Stremio credential on the server, never in browser-delivered JS.
+  const STREMIO_AUTH_KEY = String(config.authKey || process.env.STREMIO_AUTH_KEY || '').trim();
+  const configuredBases = [...new Set((config.addons || []).map(a => baseUrl(typeof a === 'string' ? a : a.manifestUrl)))];
+  const bases = [...configuredBases];
   if (bases.length && config.metadataManifest !== false) bases.push(baseUrl(config.metadataManifest || 'https://v3-cinemeta.strem.io/manifest.json'));
-  const enabled = (config.addons || []).length > 0;
+  let synced = false, syncedUntil = 0, syncing;
   const cache = new Map(), tickets = new Map();
   const readJSON = fetchJSON || (async (url, headers = {}, options = {}) => {
     const response = await fetch(url, { method: options.method || 'GET', body: options.body ? JSON.stringify(options.body) : undefined, signal: AbortSignal.timeout(options.timeout || 10000), headers: { Accept: 'application/json', ...headers } });
@@ -187,6 +189,34 @@ function createStremio({ config, fetchJSON } = {}) {
     if (cache.size > 4096) cache.delete(cache.keys().next().value);
     const promise = fn().catch(error => { cache.delete(key); throw error; });
     cache.set(key, { until: Date.now() + ttl, promise }); return promise;
+  }
+  async function syncAddons() {
+    if (!STREMIO_AUTH_KEY) return false;
+    if (synced && syncedUntil > Date.now()) return true;
+    if (syncing) return syncing;
+    syncing = (async () => {
+      const response = await readJSON('https://api.strem.io/api/addonCollectionGet',
+        { 'Content-Type': 'application/json' },
+        { method: 'POST', body: { type: 'AddonCollectionGet', authKey: STREMIO_AUTH_KEY, update: false }, timeout: 12000 });
+      const addons = response?.result?.addons;
+      if (!Array.isArray(addons)) throw new Error('Synchronisation Stremio impossible');
+      const remoteBases = [];
+      for (const addon of addons) {
+        try {
+          const url = httpUrl(String(addon?.transportUrl || '').replace(/^stremio:\/\//i, 'https://'));
+          if (url?.protocol === 'https:') remoteBases.push(baseUrl(url.href));
+        } catch { /* Ignore incompatible addon descriptors. */ }
+      }
+      const combined = [...new Set([...configuredBases, ...remoteBases])];
+      if (!combined.length) throw new Error('Aucun addon Stremio compatible');
+      if (config.metadataManifest !== false) combined.push(baseUrl(config.metadataManifest || 'https://v3-cinemeta.strem.io/manifest.json'));
+      bases.splice(0, bases.length, ...new Set(combined));
+      cache.clear();
+      synced = true;
+      syncedUntil = Date.now() + 30 * 60 * 1000;
+      return true;
+    })();
+    try { return await syncing; } finally { syncing = null; }
   }
   const manifests = () => parallel(bases, base => cached(base, 1800000, async () => ({ base, manifest: await readJSON(base + '/manifest.json', {}, { timeout: 6000 }) })));
   let metadataActive = 0; const metadataQueue = [];
@@ -566,6 +596,6 @@ function createStremio({ config, fetchJSON } = {}) {
     return '/api/stremio/media/' + id;
   }
   function getTicket(id) { const entry = tickets.get(id); return entry && entry.until > Date.now() ? entry : null; }
-  return { enabled, catalog, meta, episodes, streams, subtitles, ticket, getTicket, resolveMedia, requestMedia, search };
+  return { get enabled() { return bases.length > 0; }, syncAddons, catalog, meta, episodes, streams, subtitles, ticket, getTicket, resolveMedia, requestMedia, search };
 }
 module.exports = { createStremio, encodeId, decodeId, supports, baseUrl, media, streamPriority, isFrenchStream, isEnglishStream, isMultiStream, hasExplicitFrenchAudio, isTrueFrenchStream, isVfqStream };

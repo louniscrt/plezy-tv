@@ -356,13 +356,14 @@
       $('episodeRail').replaceChildren(el('p','detail-empty','Impossible de charger cette saison. '+error.message),action('Réessayer',()=>loadSeason(series,season,version),'detail-retry'));
     }
   }
-  async function play(item) {
+  async function play(item, queue = episodes) {
     if (C.stremio && !item.stremio && !item.demo && !item.offline) {
       try { item = await A.resolveStremio(item); } catch (error) { if (item.seerr) throw error; }
     }
     if (item.seerr) return requestTitle(item);
     if (item.Type === 'Series') { await openDetail(item); $('dSeasons').scrollIntoView({ behavior: 'smooth' }); return; }
-    await window.PlezyPlayer.start(item, episodes);
+    if (window.PlezyPlayback?.tryNativePlayback && await window.PlezyPlayback.tryNativePlayback(item)) return;
+    await window.PlezyPlayer.start(item, queue);
   }
   async function requestTitle(item) {
     if (!C.seerr && !C.stremio) return seerrSettings();
@@ -733,10 +734,10 @@
   }
   $('btnProfile').onclick = profileMenu;
   $('bbInfo').onclick = () => hero && run(() => openDetail(hero,{fromResume:hero.Type === 'Episode'})); $('bbPlay').onclick = () => hero && run(() => play(hero));
-  $('dPlay').onclick = () => detail && run(() => detail.Type === 'Series' && !detail.seerr && primaryEpisode ? window.PlezyPlayer.start(primaryEpisode,primaryEpisodeQueue) : play(detail),$('dPlay'));
+  $('dPlay').onclick = () => detail && run(() => detail.Type === 'Series' && !detail.seerr && primaryEpisode ? play(primaryEpisode,primaryEpisodeQueue) : play(detail),$('dPlay'));
   $('dRestart').onclick = () => {
     const selected = primaryEpisode || detail;
-    if (selected) run(() => window.PlezyPlayer.start({...selected,UserData:{...selected.UserData,PlaybackPositionTicks:0}},primaryEpisodeQueue),$('dRestart'));
+    if (selected) run(() => play({...selected,UserData:{...selected.UserData,PlaybackPositionTicks:0}},primaryEpisodeQueue),$('dRestart'));
   };
   $('dBrowse').onclick = () => {
     const target = !$('dSeasons').hidden ? $('dSeasons') : !$('dSimilarSec').hidden ? $('dSimilarSec') : $('dAbout');
@@ -757,7 +758,7 @@
     }));
     if (!selected.seerr) {
       if (!selected.offline) options.push(action(selected.UserData?.Played ? 'Marquer comme non vu' : 'Marquer comme vu',async()=>{await toggleUserData('Played','PlayedItems');closeModal();}));
-      options.push(action('Recommencer depuis le début',()=>{closeModal();const target=selected.Type==='Series' ? primaryEpisode : selected;if(target)return window.PlezyPlayer.start({...target,UserData:{...target.UserData,PlaybackPositionTicks:0}},selected.Type==='Series'?primaryEpisodeQueue:episodes);}));
+      options.push(action('Recommencer depuis le début',()=>{closeModal();const target=selected.Type==='Series' ? primaryEpisode : selected;if(target)return play({...target,UserData:{...target.UserData,PlaybackPositionTicks:0}},selected.Type==='Series'?primaryEpisodeQueue:episodes);}));
     }
     if (!selected.demo && !selected.seerr && selected.Type !== 'Series') {
       const download = window.PlezyOffline.list().find(i => i.Id === selected.Id);
@@ -806,8 +807,10 @@
     $('loginError').after(profilesButton);
     A.initStremio().then(enabled => {
       C.stremio = enabled; if (enabled) C.demo = false;
-      if (profileRequired) chooseProfile();
+      if (C.kiosk) { profileRequired = false; run(boot); }
+      else if (profileRequired) chooseProfile();
       else if (C.token && C.user || C.demo || enabled) run(boot);
+      else if (C.stremioError) text('loginError', C.stremioError);
     });
   }
   if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});
